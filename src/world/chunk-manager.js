@@ -1,0 +1,302 @@
+/**
+ * Chunk Manager
+ * Handles procedural terrain generation and chunk loading/unloading
+ */
+import * as THREE from 'three';
+import Rapier from '@dimforge/rapier3d-compat';
+import { CFG } from '../config/config.js';
+import { SeededRandom, _key, _clamp } from '../core/utils.js';
+import { Noise } from '../core/noise.js';
+import { createBotMesh } from '../entities/bot-mesh.js';
+
+export class ChunkManager {
+  constructor(scene, physics, entities, glbCache, terrainH, biomeSys) {
+    this.scene = scene;
+    this.physics = physics;
+    this.entities = entities;
+    this.glb = glbCache;
+    this.terrainH = terrainH;
+    this.biome = biomeSys;
+    this.chunks = new Map();
+    this.cfg = CFG.world;
+    this.noise = new Noise(this.cfg.seed + 777);
+  }
+
+  _chunkOrigin(cx, cz) {
+    return { x: cx * this.cfg.chunkSize, z: cz * this.cfg.chunkSize };
+  }
+
+  update(px, pz, loadR) {
+    loadR = loadR || this.cfg.loadRadius;
+    const ccx = Math.floor(px / this.cfg.chunkSize);
+    const ccz = Math.floor(pz / this.cfg.chunkSize);
+
+    // Find needed chunks
+    const needed = [];
+    for (let dx = -loadR; dx <= loadR; dx++) {
+      for (let dz = -loadR; dz <= loadR; dz++) {
+        if (dx * dx + dz * dz > loadR * loadR + 0.5) continue;
+        const k = _key(ccx + dx, ccz + dz);
+        if (!this.chunks.has(k)) {
+          needed.push({ cx: ccx + dx, cz: ccz + dz, d: dx * dx + dz * dz });
+        }
+      }
+    }
+
+    needed.sort((a, b) => a.d - b.d);
+
+    const budget = this.cfg.chunksPerFrame;
+    for (let i = 0; i < Math.min(budget, needed.length); i++) {
+      this._load(needed[i].cx, needed[i].cz);
+    }
+
+    // Unload far chunks
+    const ulR = loadR + 2;
+    for (const [k, cd] of this.chunks) {
+      const dx = cd.cx - ccx;
+      const dz = cd.cz - ccz;
+      if (dx * dx + dz * dz > ulR * ulR) {
+        this._unload(k, cd);
+      }
+    }
+  }
+
+  async _load(cx, cz) {
+    const k = _key(cx, cz);
+    if (this.chunks.has(k)) return;
+
+    const o = this._chunkOrigin(cx, cz);
+    const cd = {
+      cx,
+      cz,
+      group: new THREE.Group(),
+      bodyIds: [],
+      terrainBodyId: null,
+      pending: 0
+    };
+
+    cd.group.position.set(o.x, 0, o.z);
+    this.scene.add(cd.group);
+    this.chunks.set(k, cd);
+
+    // Generate terrain mesh
+    this._genTerrain(cd, o);
+
+    // Spawn objects
+    this._spawnObjects(cd, o, cx, cz);
+
+    // Spawn bots
+    this._spawnBots(cd, o, cx, cz);
+  }
+
+  _genTerrain(cd, o) {
+    const S = this.cfg.chunkSize;
+    const seg = this.cfg.chunkSegments;
+
+    const geo = new THREE.PlaneGeometry(S, S, seg, seg);
+    geo.rotateX(-Math.PI / 2);
+
+    const pos = geo.getAttribute('position');
+    const colors = new Float32Array(pos.count * 3);
+
+    for (let i = 0; i < pos.count; i++) {
+      const lx = pos.getX(i);
+      const lz = pos.getZ(i);
+      const wx = lx + o.x;
+      const wz = lz + o.z;
+      const h = this.terrainH.get(wx, wz);
+      pos.setY(i, h);
+
+      const b = this.biome.get(wx, wz);
+      const c = new THREE.Color(this.biome.getColor(b));
+
+      // Slight variation
+      const v = this.noise.n2(wx * 0.05, wz * 0.05) * 0.08;
+      colors[i * 3] = _clamp(c.r + v, 0, 1);
+      colors[i * 3 + 1] = _clamp(c.g + v, 0, 1);
+      colors[i * 3 + 2] = _clamp(c.b + v, 0, 1);
+    }
+
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.computeVertexNormals();
+
+    const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    if (CFG.settings.shadows) mat.shadowMap = this.scene.shadowMap;
+
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.receiveShadow = true;
+    cd.group.add(mesh);
+    cd.terrainMesh = mesh;
+
+    // Physics trimesh
+    const wVerts = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) {
+      wVerts[i * 3] = pos.getX(i) + o.x;
+      wVerts[i * 3 + 1] = pos.getY(i);
+      wVerts[i * 3 + 2] = pos.getZ(i) + o.z;
+    }
+
+    const idx = geo.getIndex();
+    const wIdx = new Uint32Array(idx.array);
+    const colDesc = Rapier.ColliderDesc.trimesh(wVerts, wIdx);
+    const bodyDesc = Rapier.RigidBodyDesc.fixed();
+    const { body, id } = this.physics.createBody(bodyDesc, colDesc);
+
+    cd.terrainBodyId = id;
+  }
+
+  _spawnObjects(cd, o, cx, cz) {
+    const S = this.cfg.chunkSize;
+    const cellSize = 8;
+    const cells = Math.floor(S / cellSize);
+    const rng = new SeededRandom(cx * 73856093 ^ cz * 19349663 ^ this.cfg.seed);
+    const placed = [];
+
+    for (let gx = 0; gx < cells; gx++) {
+      for (let gz = 0; gz < cells; gz++) {
+        const wx = o.x + gx * cellSize + cellSize / 2;
+        const wz = o.z + gz * cellSize + cellSize / 2;
+        const biome = this.biome.get(wx, wz);
+
+        for (const [sName, sCfg] of Object.entries(CFG.spawns)) {
+          if (!sCfg.biomes.includes(biome)) continue;
+          if (rng.next() > sCfg.density) continue;
+
+          // Min distance check
+          const ox = (rng.next() - 0.5) * cellSize * 0.7;
+          const oz = (rng.next() - 0.5) * cellSize * 0.7;
+          const px = wx + ox;
+          const pz = wz + oz;
+
+          let tooClose = false;
+          for (const p of placed) {
+            if ((p.x - px) ** 2 + (p.z - pz) ** 2 < sCfg.minDist * sCfg.minDist) {
+              tooClose = true;
+              break;
+            }
+          }
+          if (tooClose) continue;
+
+          placed.push({ x: px, z: pz });
+
+          const py = this.terrainH.get(px, pz);
+          const scale = sCfg.scale[0] + rng.next() * (sCfg.scale[1] - sCfg.scale[0]);
+          const rotY = rng.next() * Math.PI * 2;
+          const url = CFG.glbModels[sName];
+
+          this.glb.load(sName, url).then(model => {
+            const inst = model.scene.clone();
+            inst.scale.setScalar(scale);
+            inst.position.set(px - o.x, py, pz - o.z);
+            inst.rotation.y = rotY;
+            inst.traverse(c => {
+              if (c.isMesh) c.castShadow = CFG.settings.shadows;
+            });
+            cd.group.add(inst);
+
+            const eid = this.entities.add({
+              type: sName,
+              position: new THREE.Vector3(px, py, pz),
+              chunk: _key(cx, cz),
+              mesh: inst,
+              physicsBodyId: null,
+              scale,
+              biome
+            });
+            cd.bodyIds.push(eid);
+          });
+        }
+      }
+    }
+  }
+
+  _spawnBots(cd, o, cx, cz) {
+    const S = this.cfg.chunkSize;
+    const rng = new SeededRandom(cx * 12345 ^ cz * 67890 ^ this.cfg.seed + 111);
+
+    for (const [bName, bCfg] of Object.entries(CFG.bots)) {
+      if (!bCfg.biomes.includes(this.biome.get(o.x + S / 2, o.z + S / 2))) continue;
+      if (rng.next() > bCfg.density * S * S) continue;
+
+      const px = o.x + rng.range(4, S - 4);
+      const pz = o.z + rng.range(4, S - 4);
+      const py = this.terrainH.get(px, pz);
+      const url = CFG.glbModels[bName];
+
+      const spawnBot = () => {
+        const mesh = createBotMesh(bCfg.bodyColor, bCfg.headColor);
+        mesh.position.set(px - o.x, py, pz - o.z);
+        mesh.rotation.y = rng.next() * Math.PI * 2;
+        mesh.traverse(c => {
+          if (c.isMesh) c.castShadow = CFG.settings.shadows;
+        });
+        cd.group.add(mesh);
+
+        // Physics body for bot
+        const colDesc = Rapier.ColliderDesc.capsule(0.3, 0.4).setTranslation(0, 0.9, 0);
+        const bodyDesc = Rapier.RigidBodyDesc.kinematicPositionBased();
+        const { body, id: bid } = this.physics.createBody(bodyDesc, colDesc);
+        body.setTranslation({ x: px, y: py, z: pz }, true);
+
+        const eid = this.entities.add({
+          type: bName,
+          position: new THREE.Vector3(px, py, pz),
+          chunk: _key(cx, cz),
+          mesh,
+          bodyId: bid,
+          state: 'idle',
+          stateTimer: rng.range(1, 4),
+          targetPos: null,
+          speed: bCfg.speed,
+          detect: bCfg.detect,
+          flee: bCfg.flee,
+          config: bCfg
+        });
+        cd.bodyIds.push(eid);
+      };
+
+      if (url) {
+        this.glb.load(bName, url).then(() => spawnBot()).catch(() => spawnBot());
+      } else {
+        spawnBot();
+      }
+    }
+  }
+
+  _unload(k, cd) {
+    for (const eid of cd.bodyIds) {
+      const e = this.entities.get(eid);
+      if (!e) continue;
+      if (e.physicsBodyId !== undefined && e.physicsBodyId !== null) {
+        this.physics.removeBody(e.physicsBodyId);
+      }
+      this.entities.remove(eid);
+    }
+
+    if (cd.terrainBodyId) this.physics.removeBody(cd.terrainBodyId);
+    this.scene.remove(cd.group);
+
+    cd.group.traverse(c => {
+      if (c.geometry) c.geometry.dispose();
+      if (c.material) {
+        if (Array.isArray(c.material)) {
+          c.material.forEach(m => m.dispose());
+        } else {
+          c.material.dispose();
+        }
+      }
+    });
+
+    this.chunks.delete(k);
+  }
+
+  unloadAll() {
+    for (const [k, cd] of [...this.chunks]) {
+      this._unload(k, cd);
+    }
+  }
+
+  chunkCount() {
+    return this.chunks.size;
+  }
+}

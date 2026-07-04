@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Game Engine</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="src/styles/main.css">
+</head>
+
+<body>
+
+  <div id="loading-screen">
+    <div class="loader-spinner"></div>
+    <div class="loader-text">INITIALIZING</div>
+  </div>
+
+  <div id="start-screen" class="screen hidden">
+    <div class="start-content">
+      <h1 class="game-title">GAME ENGINE</h1>
+      <p class="game-subtitle">Infinite World Boilerplate</p>
+      <div class="start-buttons">
+        <button class="btn" id="btn-play">PLAY</button>
+        <button class="btn btn-ghost btn-sm" id="btn-start-settings">SETTINGS</button>
+      </div>
+      <p class="version">v1.0.0</p>
+    </div>
+  </div>
+
+  <div id="pause-screen" class="screen hidden">
+    <div class="pause-content">
+      <h2 class="game-title" style="font-size:28px;margin-bottom:24px">PAUSED</h2>
+      <div class="pause-buttons">
+        <button class="btn btn-sm" id="btn-resume">RESUME</button>
+        <button class="btn btn-ghost btn-sm" id="btn-pause-settings">SETTINGS</button>
+        <button class="btn btn-ghost btn-sm" id="btn-quit">QUIT</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="settings-screen" class="screen hidden">
+    <div class="settings-content">
+      <h2>SETTINGS</h2>
+      <div class="settings-group">
+        <h3>Graphics</h3>
+        <div class="setting-row"><label>Render Distance</label><input type="range" min="1" max="8" step="1"
+            id="s-render-dist"><span class="val" id="v-render-dist">3</span></div>
+        <div class="setting-row"><label>FOV</label><input type="range" min="50" max="110" step="5" id="s-fov"><span
+            class="val" id="v-fov">70</span></div>
+        <div class="setting-row"><label>Shadows</label><button class="toggle on" id="s-shadows"></button></div>
+        <div class="setting-row"><label>Show FPS</label><button class="toggle on" id="s-show-fps"></button></div>
+      </div>
+      <div class="settings-group">
+        <h3>Audio</h3>
+        <div class="setting-row"><label>Master Volume</label><input type="range" min="0" max="100" step="5"
+            id="s-master-vol"><span class="val" id="v-master-vol">80</span></div>
+        <div class="setting-row"><label>SFX Volume</label><input type="range" min="0" max="100" step="5"
+            id="s-sfx-vol"><span class="val" id="v-sfx-vol">70</span></div>
+        <div class="setting-row"><label>Music Volume</label><input type="range" min="0" max="100" step="5"
+            id="s-music-vol"><span class="val" id="v-music-vol">50</span></div>
+      </div>
+      <div class="settings-group">
+        <h3>Controls</h3>
+        <div class="setting-row"><label>Mouse Sensitivity</label><input type="range" min="1" max="20" step="1"
+            id="s-sensitivity"><span class="val" id="v-sensitivity">8</span></div>
+        <div class="setting-row"><label>Invert Y</label><button class="toggle" id="s-invert-y"></button></div>
+      </div>
+      <button class="btn btn-sm btn-ghost settings-back" id="btn-settings-back">BACK</button>
+    </div>
+  </div>
+
+  <div id="debug-panel" class="hidden"></div>
+  <div id="crosshair" class="hidden"></div>
+
+  <div id="mobile-controls" class="hidden">
+    <div id="joystick-zone">
+      <div id="joystick-base">
+        <div id="joystick-thumb"></div>
+      </div>
+    </div>
+    <div id="mobile-action-btns"><button class="mob-btn" id="btn-jump">JUMP</button></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.12.0/dist/rapier3d-compat.js"></script>
+  <script
+    type="importmap">{"imports":{"three":"https://unpkg.com/three@0.163.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.163.0/examples/jsm/","@dimforge/rapier3d-compat":"https://cdn.skypack.dev/@dimforge/rapier3d-compat"}}</script>
+
+  <script type="module">
+    import { Game } from './src/game.js';
+
+    const game = new Game();
+    game.boot().catch(e => {
+      console.error('Boot failed:', e);
+      document.getElementById('loading-screen').innerHTML =
+        '<div class="loader-text" style="color:var(--err)">FAILED TO INITIALIZE<br><small>' +
+        e.message + '</small></div>';
+    });
+  </script>
+
+</body>
+
+</html>
