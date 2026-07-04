@@ -3,6 +3,7 @@
  * Central place for all game settings and constants
  */
 import { BOT_PROFILES } from '../entities/profiles/bots/index.js';
+import { SPAWN_PROFILES } from '../entities/profiles/spawns/index.js';
 
 export const CFG = {
   world: {
@@ -47,19 +48,7 @@ export const CFG = {
     swamp: { temp: [0.5, 0.75], moist: [0.8, 1], ground: 0x384828, name: 'Swamp' },
     jungle: { temp: [0.6, 0.85], moist: [0.6, 1], ground: 0x1a5018, name: 'Jungle' },
   },
-  spawns: {
-    tree_pine: { biomes: ['snow', 'tundra'], density: { snow: 0.042, tundra: 0.026 }, minDist: 5, scale: [0.8, 1.4] },
-    tree_oak: { biomes: ['forest', 'plains'], density: { forest: 0.032, plains: 0.02 }, minDist: 6, scale: [0.7, 1.3] },
-    tree_palm: { biomes: ['desert', 'savanna'], density: 0.012, minDist: 7, scale: [0.9, 1.2] },
-    tree_jungle: { biomes: ['jungle', 'swamp'], density: { jungle: 0.05, swamp: 0.032 }, minDist: 4, scale: [0.6, 1.5] },
-    cactus: { biomes: ['desert'], density: 0.02, minDist: 4, scale: [0.6, 1.1] },
-    rock: { biomes: ['desert', 'tundra', 'snow', 'plains'], density: 0.012, minDist: 4, scale: [0.5, 2.0] },
-    bush: { biomes: ['plains', 'savanna', 'forest'], density: 0.018, minDist: 3, scale: [0.6, 1.2] },
-    mushroom: { biomes: ['swamp', 'jungle'], density: 0.025, minDist: 2, scale: [0.4, 1.0] },
-    house: { biomes: ['plains', 'forest'], density: 0.0015, minDist: 35, scale: [0.9, 1.1] },
-    dead_tree: { biomes: ['swamp', 'desert'], density: 0.01, minDist: 5, scale: [0.7, 1.2] },
-    flower: { biomes: ['plains', 'forest'], density: 0.03, minDist: 1.5, scale: [0.3, 0.6] },
-  },
+  spawns: SPAWN_PROFILES,
   bots: BOT_PROFILES,
   glbModels: {
     tree_pine: null, tree_oak: null, tree_palm: null, tree_jungle: null,

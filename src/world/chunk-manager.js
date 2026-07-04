@@ -194,6 +194,7 @@ export class ChunkManager {
           const scale = sCfg.scale[0] + rng.next() * (sCfg.scale[1] - sCfg.scale[0]);
           const rotY = rng.next() * Math.PI * 2;
           const url = CFG.glbModels[sName];
+          const physicsBodyId = this._createSpawnPhysicsBody(sCfg, px, py, pz, scale);
 
           this.glb.load(sName, url).then(model => {
             const inst = model.scene.clone();
@@ -211,7 +212,7 @@ export class ChunkManager {
               position: new THREE.Vector3(px, py, pz),
               chunk: _key(cx, cz),
               mesh: inst,
-              physicsBodyId: null,
+              physicsBodyId,
               scale,
               biome,
               animation
@@ -262,6 +263,7 @@ export class ChunkManager {
           chunk: _key(cx, cz),
           mesh,
           bodyId: bid,
+          physicsBodyId: bid,
           state: 'idle',
           stateTimer: rng.range(1, 4),
           action: 'idle',
@@ -289,6 +291,44 @@ export class ChunkManager {
         spawnBot();
       }
     }
+  }
+
+  _createSpawnPhysicsBody(profile, px, py, pz, scale) {
+    const collider = this._spawnColliderFor(profile, scale);
+    if (!collider) return null;
+
+    const bodyDesc = Rapier.RigidBodyDesc.fixed().setTranslation(px, py, pz);
+    const { id } = this.physics.createBody(bodyDesc, collider);
+    return id;
+  }
+
+  _spawnColliderFor(profile, scale) {
+    const physics = profile?.physics;
+    if (!physics) return null;
+
+    const s = Math.max(0.1, scale || 1);
+    const offset = physics.offset || [0, 0, 0];
+
+    if (physics.type === 'cuboid') {
+      const halfExtents = physics.halfExtents || [1, 1, 1];
+      return Rapier.ColliderDesc.cuboid(
+        halfExtents[0] * s,
+        halfExtents[1] * s,
+        halfExtents[2] * s
+      ).setTranslation(offset[0] * s, offset[1] * s, offset[2] * s);
+    }
+
+    if (physics.type === 'ball') {
+      return Rapier.ColliderDesc.ball((physics.radius || 1) * s)
+        .setTranslation(offset[0] * s, offset[1] * s, offset[2] * s);
+    }
+
+    if (physics.type === 'capsule') {
+      return Rapier.ColliderDesc.capsule((physics.halfHeight || 1) * s, (physics.radius || 0.25) * s)
+        .setTranslation(offset[0] * s, offset[1] * s, offset[2] * s);
+    }
+
+    return null;
   }
 
   _unload(k, cd) {

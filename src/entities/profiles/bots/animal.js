@@ -1,6 +1,22 @@
 export const animal = {
   type: 'animal',
   category: 'bot',
+  fallback: {
+    parts: [
+      {
+        geometry: 'capsule',
+        args: [0.35, 0.8, 4, 8],
+        position: [0, 0.9, 0],
+        material: { color: 0x806040 },
+      },
+      {
+        geometry: 'sphere',
+        args: [0.3, 8, 6],
+        position: [0, 1.8, 0],
+        material: { color: 0x907050 },
+      },
+    ],
+  },
   speed: 3.5,
   detect: 10,
   flee: 7,
