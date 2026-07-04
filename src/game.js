@@ -213,7 +213,14 @@ export class Game {
     this.chunks.update(pPos.x, pPos.z, CFG.settings.renderDist);
 
     // Bot AI
-    updateBots(this.entities, this.physics, this.terrainH, pPos, dt);
+    updateBots(this.entities, this.physics, this.terrainH, pPos, this.player.body, dt);
+
+    // Entity animations
+    for (const entity of this.entities.all()) {
+      if (entity.animation && typeof entity.animation.update === 'function') {
+        entity.animation.update(dt);
+      }
+    }
 
     // Audio
     this.audio.setMaster(CFG.settings.masterVol / 100);

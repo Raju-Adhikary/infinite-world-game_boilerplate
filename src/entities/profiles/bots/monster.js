@@ -1,0 +1,22 @@
+export const monster = {
+  type: 'monster',
+  category: 'bot',
+  speed: 2.0,
+  detect: 25,
+  flee: 0,
+  behavior: 'aggressive',
+  attackRange: 2.4,
+  attackCooldown: 1.5,
+  attackForce: 10,
+  angryDuration: 6,
+  biomes: ['swamp', 'jungle'],
+  density: { swamp: 0.0009, jungle: 0.001 },
+  bodyColor: 0x403020,
+  headColor: 0xa02020,
+  animations: {
+    idle: ['idle'],
+    walk: ['walk'],
+    angry: ['angry'],
+    attack: ['attack'],
+  },
+};

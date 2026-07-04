@@ -88,6 +88,8 @@ glm-4.6_test/
 
 **To add new entities/bots:**
 - Define spawn config in `CFG.spawns` or `CFG.bots`
+- `density` can be a single number or a biome map like `{ forest: 0.03, plains: 0.02, default: 0.025 }`
+- Bot profiles now live in separate files under `src/entities/profiles/bots/`
 - Add mesh generation in `src/core/glb-cache.js` if using procedural fallback
 - No changes needed to core systems
 

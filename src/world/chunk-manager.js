@@ -26,6 +26,16 @@ export class ChunkManager {
     return { x: cx * this.cfg.chunkSize, z: cz * this.cfg.chunkSize };
   }
 
+  _getDensity(densityCfg, biome) {
+    if (typeof densityCfg === 'number') return densityCfg;
+    if (!densityCfg || typeof densityCfg !== 'object') return 0;
+
+    if (densityCfg[biome] !== undefined) return densityCfg[biome];
+    if (densityCfg.default !== undefined) return densityCfg.default;
+
+    return 0;
+  }
+
   update(px, pz, loadR) {
     loadR = loadR || this.cfg.loadRadius;
     const ccx = Math.floor(px / this.cfg.chunkSize);
@@ -160,7 +170,8 @@ export class ChunkManager {
 
         for (const [sName, sCfg] of Object.entries(CFG.spawns)) {
           if (!sCfg.biomes.includes(biome)) continue;
-          if (rng.next() > sCfg.density) continue;
+          const density = this._getDensity(sCfg.density, biome);
+          if (rng.next() > density) continue;
 
           // Min distance check
           const ox = (rng.next() - 0.5) * cellSize * 0.7;
@@ -186,6 +197,7 @@ export class ChunkManager {
 
           this.glb.load(sName, url).then(model => {
             const inst = model.scene.clone();
+            const animation = this.glb.createAnimationController(model, inst, sCfg.animations || null);
             inst.scale.setScalar(scale);
             inst.position.set(px - o.x, py, pz - o.z);
             inst.rotation.y = rotY;
@@ -201,8 +213,10 @@ export class ChunkManager {
               mesh: inst,
               physicsBodyId: null,
               scale,
-              biome
+              biome,
+              animation
             });
+            if (animation) animation.playAction('idle');
             cd.bodyIds.push(eid);
           });
         }
@@ -215,16 +229,19 @@ export class ChunkManager {
     const rng = new SeededRandom(cx * 12345 ^ cz * 67890 ^ this.cfg.seed + 111);
 
     for (const [bName, bCfg] of Object.entries(CFG.bots)) {
-      if (!bCfg.biomes.includes(this.biome.get(o.x + S / 2, o.z + S / 2))) continue;
-      if (rng.next() > bCfg.density * S * S) continue;
+      const biome = this.biome.get(o.x + S / 2, o.z + S / 2);
+      if (!bCfg.biomes.includes(biome)) continue;
+      const density = this._getDensity(bCfg.density, biome);
+      if (rng.next() > density * S * S) continue;
 
       const px = o.x + rng.range(4, S - 4);
       const pz = o.z + rng.range(4, S - 4);
       const py = this.terrainH.get(px, pz);
       const url = CFG.glbModels[bName];
 
-      const spawnBot = () => {
-        const mesh = createBotMesh(bCfg.bodyColor, bCfg.headColor);
+      const spawnBot = (model = null) => {
+        const mesh = model?.scene ? model.scene.clone() : createBotMesh(bCfg.bodyColor, bCfg.headColor);
+        const animation = model ? this.glb.createAnimationController(model, mesh, bCfg.animations || null) : null;
         mesh.position.set(px - o.x, py, pz - o.z);
         mesh.rotation.y = rng.next() * Math.PI * 2;
         mesh.traverse(c => {
@@ -240,23 +257,34 @@ export class ChunkManager {
 
         const eid = this.entities.add({
           type: bName,
+          category: 'bot',
           position: new THREE.Vector3(px, py, pz),
           chunk: _key(cx, cz),
           mesh,
           bodyId: bid,
           state: 'idle',
           stateTimer: rng.range(1, 4),
+          action: 'idle',
           targetPos: null,
           speed: bCfg.speed,
           detect: bCfg.detect,
           flee: bCfg.flee,
+          behavior: bCfg.behavior || (bCfg.flee > 0 ? 'flee' : bCfg.attackRange > 0 ? 'aggressive' : 'passive'),
+          attackRange: bCfg.attackRange || 0,
+          attackCooldown: bCfg.attackCooldown || 0,
+          attackForce: bCfg.attackForce || 0,
+          angryDuration: bCfg.angryDuration || 0,
+          attackTimer: 0,
+          angerTimer: 0,
+          animation,
           config: bCfg
         });
+        if (animation) animation.playAction('idle');
         cd.bodyIds.push(eid);
       };
 
       if (url) {
-        this.glb.load(bName, url).then(() => spawnBot()).catch(() => spawnBot());
+        this.glb.load(bName, url).then(model => spawnBot(model)).catch(() => spawnBot());
       } else {
         spawnBot();
       }

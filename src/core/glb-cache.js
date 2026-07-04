@@ -194,4 +194,47 @@ export class GLBCache {
     this.cache.set(name, { scene: g, animations: [] });
     return this.cache.get(name);
   }
+
+  createAnimationController(model, root, actionMap = null) {
+    const clips = model?.animations || [];
+    if (!root || clips.length === 0) return null;
+
+    const mixer = new THREE.AnimationMixer(root);
+    const actions = new Map();
+
+    for (const clip of clips) {
+      actions.set(clip.name, mixer.clipAction(clip));
+    }
+
+    const controller = {
+      mixer,
+      actions,
+      state: null,
+      update(dt) {
+        mixer.update(dt);
+      },
+      playAction(action) {
+        const clipNames = actionMap && actionMap[action]
+          ? (Array.isArray(actionMap[action]) ? actionMap[action] : [actionMap[action]])
+          : [action];
+
+        let played = false;
+        for (const action of actions.values()) {
+          action.fadeOut(0.12);
+        }
+
+        for (const clipName of clipNames) {
+          const action = actions.get(clipName);
+          if (!action) continue;
+          action.reset().fadeIn(0.12).play();
+          played = true;
+        }
+
+        if (played) controller.state = action;
+        return played;
+      },
+    };
+
+    return controller;
+  }
 }

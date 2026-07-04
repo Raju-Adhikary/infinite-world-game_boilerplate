@@ -1,0 +1,20 @@
+export const villager = {
+  type: 'villager',
+  category: 'bot',
+  speed: 1.5,
+  detect: 14,
+  flee: 5,
+  behavior: 'social',
+  attackRange: 0,
+  attackCooldown: 0,
+  attackForce: 0,
+  angryDuration: 0,
+  biomes: ['plains', 'forest'],
+  density: { plains: 0.0015, forest: 0.001 },
+  bodyColor: 0xc08040,
+  headColor: 0xe0b080,
+  animations: {
+    idle: ['idle'],
+    walk: ['walk'],
+  },
+};
