@@ -113,7 +113,9 @@ export class UIManager {
     try {
       const s = localStorage.getItem('ge_settings');
       if (s) Object.assign(CFG.settings, JSON.parse(s));
-    } catch { }
+    } catch (err) {
+      console.warn('Failed to load settings:', err);
+    }
 
     // Sync UI
     const set = (id, vId, val) => {
@@ -139,7 +141,13 @@ export class UIManager {
   _saveSettings() {
     try {
       localStorage.setItem('ge_settings', JSON.stringify(CFG.settings));
-    } catch { }
+    } catch (err) {
+      console.warn('Failed to save settings:', err);
+    }
+  }
+
+  destroy() {
+    window.removeEventListener('keydown', this._onKey);
   }
 
   showLoading() { this.loadingEl.classList.remove('hidden'); }
