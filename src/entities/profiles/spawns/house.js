@@ -1,7 +1,7 @@
 export const house = {
   biomes: ['plains', 'forest'],
-  density: 0.0015,
-  minDist: 35,
+  density: 0.015,
+  minDist: 20,
   scale: [0.9, 1.1],
   fallback: {
     parts: [

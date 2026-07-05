@@ -1,6 +1,6 @@
 export const tree_jungle = {
   biomes: ['jungle', 'swamp'],
-  density: { jungle: 0.05, swamp: 0.032 },
+  density: { jungle: 0.1, swamp: 0.032 },
   minDist: 4,
   scale: [0.6, 1.5],
   fallback: {

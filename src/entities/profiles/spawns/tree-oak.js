@@ -1,6 +1,6 @@
 export const tree_oak = {
   biomes: ['forest', 'plains'],
-  density: { forest: 0.032, plains: 0.02 },
+  density: { forest: 0.08, plains: 0.02 },
   minDist: 6,
   scale: [0.7, 1.3],
   fallback: {
