@@ -147,6 +147,7 @@ export class Game {
   }
 
   _startGame() {
+    document.documentElement.requestFullscreen();
     this.state = 'playing';
     this.ui.hideStart();
     this.ui.crosshair.classList.remove('hidden');

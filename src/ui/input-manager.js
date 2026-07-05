@@ -76,21 +76,30 @@ export class InputManager {
     }, { passive: false });
 
     jz.addEventListener('touchmove', e => {
-      e.preventDefault();
-      if (!this._joyActive) return;
+        e.preventDefault();
+        if (!this._joyActive) return;
 
-      for (const t of e.changedTouches) {
-        if (t.identifier !== this._joyId) continue;
-        const dx = t.clientX - this._joyStart.x;
-        const dy = t.clientY - this._joyStart.y;
-        const max = 50;
-        const d = Math.sqrt(dx * dx + dy * dy);
-        const c = d > max ? max / d : 1;
+        const max = 100;
 
-        jt.style.transform = `translate(${-50 + dx * c * 0.35}%,${-50 + dy * c * 0.35}%)`;
-        this.joyVec.x = _clamp(dx * c / max, -1, 1);
-        this.joyVec.y = _clamp(dy * c / max, -1, 1);
-      }
+        for (const touch of e.changedTouches) {
+            if (touch.identifier !== this._joyId) continue;
+
+            let dx = touch.clientX - this._joyStart.x;
+            let dy = touch.clientY - this._joyStart.y;
+
+            const dist = Math.hypot(dx, dy);
+
+            if (dist > max) {
+                const scale = max / dist;
+                dx *= scale;
+                dy *= scale;
+            }
+
+            jt.style.transform = `translate(${-50 + dx}%, ${-50 + dy}%)`;
+
+            this.joyVec.x = _clamp(dx / max, -1, 1);
+            this.joyVec.y = _clamp(dy / max, -1, 1);
+        }
     }, { passive: false });
 
     const endJoy = () => {
