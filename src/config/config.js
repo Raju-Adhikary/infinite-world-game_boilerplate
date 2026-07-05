@@ -61,7 +61,7 @@ export const CFG = {
     ambient_forest: null, ambient_desert: null,
   },
   settings: {
-    renderDist: 3, fov: 70, shadows: true, showFps: true,
+    renderDist: 3, fov: 70, shadows: true, showFps: false,
     masterVol: 80, sfxVol: 70, musicVol: 50,
     sensitivity: 8, invertY: false,
   }
