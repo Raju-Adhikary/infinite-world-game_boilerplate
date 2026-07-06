@@ -189,7 +189,7 @@ function _moveBot(bot, target, speed, dt, terrainH, physics) {
   );
 
   const body = physics.bodies.get(bot.bodyId);
-  if (body) body.body.setTranslation({ x: newX, y: newY, z: newZ }, true);
+  if (body) body.body.setNextKinematicTranslation({ x: newX, y: newY, z: newZ });
 
   bot.position.set(newX, newY, newZ);
 }

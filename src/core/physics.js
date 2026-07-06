@@ -41,7 +41,16 @@ export class PhysicsWorld {
   }
 
   raycast(from, to) {
-    return this.world ? this.world.castRay(new Rapier.Ray(from, to), 1.0, true) : null;
+    if (!this.world) return null;
+
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const dz = to.z - from.z;
+    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (dist <= 0) return null;
+
+    const dir = { x: dx / dist, y: dy / dist, z: dz / dist };
+    return this.world.castRay(new Rapier.Ray(from, dir), dist, true);
   }
 
   getBodyPos(b) {
