@@ -4,6 +4,8 @@
  */
 import { CFG } from '../config/config.js';
 
+const CAMERA_MODES = ['first-person', 'third-person', 'shoulder'];
+
 export class UIManager {
   constructor(input) {
     this.input = input;
@@ -80,6 +82,18 @@ export class UIManager {
       document.getElementById('v-sensitivity').textContent = el.value;
     });
 
+    const cameraModeBtn = document.getElementById('s-camera-mode');
+    const syncCameraMode = () => {
+      document.getElementById('v-camera-mode').textContent = CFG.settings.cameraMode;
+      cameraModeBtn.textContent = CFG.settings.cameraMode;
+      cameraModeBtn.classList.toggle('on', CFG.settings.cameraMode !== 'first-person');
+    };
+    cameraModeBtn.onclick = () => {
+      const idx = CAMERA_MODES.indexOf(CFG.settings.cameraMode);
+      CFG.settings.cameraMode = CAMERA_MODES[(idx + 1) % CAMERA_MODES.length];
+      syncCameraMode();
+    };
+
     // Toggles
     const tog = (id, key) => {
       const el = document.getElementById(id);
@@ -132,6 +146,17 @@ export class UIManager {
     set('s-sfx-vol', 'v-sfx-vol', CFG.settings.sfxVol);
     set('s-music-vol', 'v-music-vol', CFG.settings.musicVol);
     set('s-sensitivity', 'v-sensitivity', CFG.settings.sensitivity);
+
+    if (CAMERA_MODES.includes(CFG.settings.cameraMode)) {
+      document.getElementById('v-camera-mode').textContent = CFG.settings.cameraMode;
+      document.getElementById('s-camera-mode').textContent = CFG.settings.cameraMode;
+      document.getElementById('s-camera-mode').classList.toggle('on', CFG.settings.cameraMode !== 'first-person');
+    } else {
+      CFG.settings.cameraMode = 'third-person';
+      document.getElementById('v-camera-mode').textContent = CFG.settings.cameraMode;
+      document.getElementById('s-camera-mode').textContent = CFG.settings.cameraMode;
+      document.getElementById('s-camera-mode').classList.add('on');
+    }
 
     document.getElementById('s-shadows').classList.toggle('on', CFG.settings.shadows);
     document.getElementById('s-show-fps').classList.toggle('on', CFG.settings.showFps);

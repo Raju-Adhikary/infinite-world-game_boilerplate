@@ -20,7 +20,63 @@ export class PlayerController {
     this.grounded = false;
     this.bodyId = null;
     this.body = null;
+    this.avatar = null;
     this.spawnPos = new THREE.Vector3(0, CFG.player.spawnY, 0);
+  }
+
+  _createAvatar() {
+    const g = new THREE.Group();
+
+    const body = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.38, 0.78, 4, 8),
+      new THREE.MeshLambertMaterial({ color: 0x3d4f78 })
+    );
+    body.position.y = 0.92;
+    body.castShadow = true;
+    g.add(body);
+
+    const chest = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.32, 0.36, 0.8, 8),
+      new THREE.MeshLambertMaterial({ color: 0xd5b08a })
+    );
+    chest.position.y = 0.9;
+    chest.castShadow = true;
+    g.add(chest);
+
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.28, 8, 6),
+      new THREE.MeshLambertMaterial({ color: 0xe8c39c })
+    );
+    head.position.y = 1.78;
+    head.castShadow = true;
+    g.add(head);
+
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+    for (const side of [-1, 1]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.03, 4, 4), eyeMat);
+      eye.position.set(side * 0.07, 1.82, 0.22);
+      g.add(eye);
+    }
+
+    const armMat = new THREE.MeshLambertMaterial({ color: 0xd5b08a });
+    for (const side of [-1, 1]) {
+      const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.42, 4, 6), armMat);
+      arm.position.set(side * 0.42, 1.08, 0);
+      arm.rotation.z = side * 0.18;
+      arm.castShadow = true;
+      g.add(arm);
+    }
+
+    const legMat = new THREE.MeshLambertMaterial({ color: 0x2f2f3f });
+    for (const side of [-1, 1]) {
+      const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.56, 4, 6), legMat);
+      leg.position.set(side * 0.16, 0.28, 0);
+      leg.castShadow = true;
+      g.add(leg);
+    }
+
+    g.visible = false;
+    return g;
   }
 
   init() {
@@ -35,6 +91,26 @@ export class PlayerController {
 
     this.body = body;
     this.bodyId = id;
+
+    this.avatar = this._createAvatar();
+    this.scene.add(this.avatar);
+  }
+
+  _cameraMode() {
+    return CFG.settings.cameraMode || 'third-person';
+  }
+
+  _updateAvatar(bodyPos, yaw) {
+    if (!this.avatar) return;
+
+    const mode = this._cameraMode();
+    const isFirstPerson = mode === 'first-person';
+    this.avatar.visible = !isFirstPerson;
+
+    if (isFirstPerson) return;
+
+    this.avatar.position.copy(bodyPos);
+    this.avatar.rotation.y = yaw;
   }
 
   update(dt) {
@@ -51,10 +127,10 @@ export class PlayerController {
 
     // Movement
     const mv = this.input.getMove();
-    const forward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
+    const moveForward = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
     const right = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
     const dir = new THREE.Vector3();
-    dir.addScaledVector(forward, -mv.z);
+    dir.addScaledVector(moveForward, -mv.z);
     dir.addScaledVector(right, mv.x);
 
     if (dir.lengthSq() > 0) dir.normalize();
@@ -77,15 +153,33 @@ export class PlayerController {
 
     // Update camera
     const cp = CFG.player;
-    const camOffset = new THREE.Vector3(
-      Math.sin(this.yaw) * Math.cos(this.pitch) * cp.cameraDist,
-      Math.sin(this.pitch) * cp.cameraDist + cp.cameraHeight,
-      Math.cos(this.yaw) * Math.cos(this.pitch) * cp.cameraDist
-    );
 
     const playerPos = new THREE.Vector3(p.x, p.y + cp.height * 0.6, p.z);
-    this.camera.position.copy(playerPos).add(camOffset);
-    this.camera.lookAt(playerPos);
+    this._updateAvatar(new THREE.Vector3(p.x, p.y, p.z), this.yaw);
+
+    const eyePos = new THREE.Vector3(p.x, p.y + cp.height * 0.9, p.z);
+    const forward = new THREE.Vector3(
+      -Math.sin(this.yaw) * Math.cos(this.pitch),
+      Math.sin(this.pitch),
+      -Math.cos(this.yaw) * Math.cos(this.pitch)
+    ).normalize();
+
+    const mode = this._cameraMode();
+    if (mode === 'first-person') {
+      this.camera.position.copy(eyePos);
+      this.camera.lookAt(eyePos.clone().add(forward));
+    } else {
+      const dist = mode === 'shoulder' ? Math.max(4, cp.cameraDist * 0.7) : cp.cameraDist;
+      const right = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
+      const offset = forward.clone().multiplyScalar(-dist).addScaledVector(new THREE.Vector3(0, 1, 0), cp.cameraHeight);
+
+      if (mode === 'shoulder') {
+        offset.addScaledVector(right, dist * 0.35);
+      }
+
+      this.camera.position.copy(playerPos).add(offset);
+      this.camera.lookAt(playerPos);
+    }
 
     return playerPos;
   }
@@ -104,5 +198,6 @@ export class PlayerController {
 
   destroy() {
     if (this.bodyId) this.physics.removeBody(this.bodyId);
+    if (this.avatar) this.scene.remove(this.avatar);
   }
 }

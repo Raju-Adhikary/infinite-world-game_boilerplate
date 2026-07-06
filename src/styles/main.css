@@ -229,6 +229,22 @@ canvas {
   transform: translateX(18px)
 }
 
+.setting-row .toggle.mode {
+  width: auto;
+  min-width: 120px;
+  padding: 0 12px;
+  color: var(--text);
+  font-family: var(--fd);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  line-height: 22px
+}
+
+.setting-row .toggle.mode::after {
+  display: none
+}
+
 .settings-back {
   display: block;
   margin: 20px auto 0
