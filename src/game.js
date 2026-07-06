@@ -13,6 +13,7 @@ import { EntityManager } from './entities/entity-manager.js';
 import { TerrainHeight } from './world/terrain-height.js';
 import { BiomeSystem } from './world/biome-system.js';
 import { ChunkManager } from './world/chunk-manager.js';
+import { SkySystem } from './world/sky-system.js';
 import { PlayerController } from './player/player-controller.js';
 import { updateBots } from './entities/bot-ai.js';
 
@@ -95,6 +96,7 @@ export class Game {
     this.entities = new EntityManager();
     this.terrainH = new TerrainHeight(CFG.world.seed);
     this.biome = new BiomeSystem(CFG.world.seed);
+    this.sky = new SkySystem(this.scene);
     this.physics = new PhysicsWorld();
     await this.physics.init();
     this.chunks = new ChunkManager(this.scene, this.physics, this.entities, this.glb, this.terrainH, this.biome);
@@ -183,6 +185,7 @@ export class Game {
     this.player.destroy();
     this.chunks.unloadAll();
     this.entities.clear();
+    this.sky.dispose();
     this.ui.hidePause();
     this.ui.showStart();
     this._renderIdle();
@@ -209,6 +212,9 @@ export class Game {
     );
     this.sun.target.position.copy(pPos);
     this.sun.target.updateMatrixWorld();
+
+    // Update sky (sun mesh and clouds)
+    this.sky.update(pPos);
 
     // Chunks
     this.chunks.update(pPos.x, pPos.z, CFG.settings.renderDist);
