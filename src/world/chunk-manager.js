@@ -60,8 +60,9 @@ export class ChunkManager {
       this._load(needed[i].cx, needed[i].cz);
     }
 
-    // Unload far chunks
-    const ulR = loadR + 2;
+    // Unload far chunks (honor the configured radius, but never below the
+    // loaded ring + 2, otherwise chunks pop out of view at high render distance)
+    const ulR = Math.max(this.cfg.unloadRadius, loadR + 2);
     for (const [k, cd] of this.chunks) {
       const dx = cd.cx - ccx;
       const dz = cd.cz - ccz;
@@ -82,7 +83,8 @@ export class ChunkManager {
       group: new THREE.Group(),
       bodyIds: [],
       terrainBodyId: null,
-      pending: 0
+      pending: 0,
+      disposed: false
     };
 
     cd.group.position.set(o.x, 0, o.z);
@@ -131,7 +133,6 @@ export class ChunkManager {
     geo.computeVertexNormals();
 
     const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
-    if (CFG.settings.shadows) mat.shadowMap = this.scene.shadowMap;
 
     const mesh = new THREE.Mesh(geo, mat);
     mesh.receiveShadow = true;
@@ -197,6 +198,13 @@ export class ChunkManager {
           const physicsBodyId = this._createSpawnPhysicsBody(sCfg, px, py, pz, scale);
 
           this.glb.load(sName, url).then(model => {
+            // The load resolves asynchronously - the chunk may have been
+            // unloaded in the meantime. Skip and release the already-created
+            // physics body, otherwise it (and the entity) leaks forever.
+            if (cd.disposed) {
+              if (physicsBodyId) this.physics.removeBody(physicsBodyId);
+              return;
+            }
             const inst = model.scene.clone();
             const animation = this.glb.createAnimationController(model, inst, sCfg.animations || null);
             inst.scale.setScalar(scale);
@@ -204,6 +212,7 @@ export class ChunkManager {
             inst.rotation.y = rotY;
             inst.traverse(c => {
               if (c.isMesh) c.castShadow = CFG.settings.shadows;
+              c.userData.cachedInstance = true;
             });
             cd.group.add(inst);
 
@@ -219,6 +228,8 @@ export class ChunkManager {
             });
             if (animation) animation.playAction('idle');
             cd.bodyIds.push(eid);
+          }).catch(() => {
+            if (!cd.disposed && physicsBodyId) this.physics.removeBody(physicsBodyId);
           });
         }
       }
@@ -241,12 +252,14 @@ export class ChunkManager {
       const url = CFG.glbModels[bName];
 
       const spawnBot = (model = null) => {
+        if (cd.disposed) return; // chunk unloaded while the model was loading
         const mesh = model?.scene ? model.scene.clone() : createBotMesh(bCfg.bodyColor, bCfg.headColor);
         const animation = model ? this.glb.createAnimationController(model, mesh, bCfg.animations || null) : null;
         mesh.position.set(px - o.x, py, pz - o.z);
         mesh.rotation.y = rng.next() * Math.PI * 2;
         mesh.traverse(c => {
           if (c.isMesh) c.castShadow = CFG.settings.shadows;
+          if (model?.scene) c.userData.cachedInstance = true;
         });
         cd.group.add(mesh);
 
@@ -332,6 +345,8 @@ export class ChunkManager {
   }
 
   _unload(k, cd) {
+    cd.disposed = true;
+
     for (const eid of cd.bodyIds) {
       const e = this.entities.get(eid);
       if (!e) continue;
@@ -345,6 +360,10 @@ export class ChunkManager {
     this.scene.remove(cd.group);
 
     cd.group.traverse(c => {
+      // Cached model instances (GLB scenes and procedural fallbacks) share
+      // their geometry/material with the GLBCache and every other clone -
+      // disposing them invalidates the cache and forces constant GPU re-uploads.
+      if (c.userData && c.userData.cachedInstance) return;
       if (c.geometry) c.geometry.dispose();
       if (c.material) {
         if (Array.isArray(c.material)) {
