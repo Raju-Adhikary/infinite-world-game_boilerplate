@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import Rapier from '@dimforge/rapier3d-compat';
 import { CFG } from '../config/config.js';
 import { SeededRandom, _key, _clamp } from '../core/utils.js';
+import { GROUP_TERRAIN, GROUP_PROP } from '../core/physics.js';
 import { Noise } from '../core/noise.js';
 import { createBotMesh } from '../entities/bot-mesh.js';
 import { createProceduralAnimator, createSwayAnimator } from '../entities/procedural-animator.js';
@@ -150,7 +151,8 @@ export class ChunkManager {
 
     const idx = geo.getIndex();
     const wIdx = new Uint32Array(idx.array);
-    const colDesc = Rapier.ColliderDesc.trimesh(wVerts, wIdx);
+    const colDesc = Rapier.ColliderDesc.trimesh(wVerts, wIdx)
+      .setCollisionGroups(GROUP_TERRAIN);
     const bodyDesc = Rapier.RigidBodyDesc.fixed();
     const { body, id } = this.physics.createBody(bodyDesc, colDesc);
 
@@ -277,7 +279,9 @@ export class ChunkManager {
 
         // Bot capsule is slimmer than before (r 0.4 -> 0.3) so the player
         // stops close to a mob instead of pushing against an invisible blob.
-        const colDesc = Rapier.ColliderDesc.capsule(0.5, 0.3).setTranslation(0, 0.95, 0);
+        const colDesc = Rapier.ColliderDesc.capsule(0.5, 0.3)
+          .setTranslation(0, 0.95, 0)
+          .setCollisionGroups(GROUP_PROP);
         const bodyDesc = Rapier.RigidBodyDesc.kinematicPositionBased();
         const { body, id: bid } = this.physics.createBody(bodyDesc, colDesc);
         body.setTranslation({ x: px, y: py, z: pz }, true);
@@ -341,17 +345,20 @@ export class ChunkManager {
         halfExtents[0] * s,
         halfExtents[1] * s,
         halfExtents[2] * s
-      ).setTranslation(offset[0] * s, offset[1] * s, offset[2] * s);
+      ).setTranslation(offset[0] * s, offset[1] * s, offset[2] * s)
+        .setCollisionGroups(GROUP_PROP);
     }
 
     if (physics.type === 'ball') {
       return Rapier.ColliderDesc.ball((physics.radius || 1) * s)
-        .setTranslation(offset[0] * s, offset[1] * s, offset[2] * s);
+        .setTranslation(offset[0] * s, offset[1] * s, offset[2] * s)
+        .setCollisionGroups(GROUP_PROP);
     }
 
     if (physics.type === 'capsule') {
       return Rapier.ColliderDesc.capsule((physics.halfHeight || 1) * s, (physics.radius || 0.25) * s)
-        .setTranslation(offset[0] * s, offset[1] * s, offset[2] * s);
+        .setTranslation(offset[0] * s, offset[1] * s, offset[2] * s)
+        .setCollisionGroups(GROUP_PROP);
     }
 
     return null;

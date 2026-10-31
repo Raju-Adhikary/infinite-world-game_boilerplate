@@ -18,8 +18,12 @@ export class UIManager {
     this.crosshair = document.getElementById('crosshair');
     this.prevSettings = null;
 
-    this._bind();
+    // Settings must load BEFORE the controls bind: binding a range input
+    // fires its callback once with the DOM's uninitialized midpoint value,
+    // which used to override every saved slider setting (render distance
+    // booted as 4.5 instead of 3, FOV as 80, volumes and sensitivity off).
     this._loadSettings();
+    this._bind();
   }
 
   _bind() {

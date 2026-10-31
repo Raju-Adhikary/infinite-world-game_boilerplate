@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import Rapier from '@dimforge/rapier3d-compat';
 import { CFG } from '../config/config.js';
 import { _clamp } from '../core/utils.js';
+import { GROUP_PROP, FILTER_TERRAIN_ONLY } from '../core/physics.js';
 import { createProceduralAnimator } from '../entities/procedural-animator.js';
 
 export class PlayerController {
@@ -101,7 +102,8 @@ export class PlayerController {
     // 2.8m x 2m blob that wedged the player inside trees and blocks.
     const colDesc = Rapier.ColliderDesc.capsule((p.height - p.radius * 2) / 2, p.radius)
       .setTranslation(0, p.height / 2, 0)
-      .setMass(1);
+      .setMass(1)
+      .setCollisionGroups(GROUP_PROP);
     const bodyDesc = Rapier.RigidBodyDesc.dynamic()
       .setTranslation(this.spawnPos.x, this.spawnPos.y, this.spawnPos.z)
       .lockRotations();
@@ -215,16 +217,17 @@ export class PlayerController {
 
       const desired = lookTarget.clone().add(offset);
 
-      // Pull the camera in when terrain or props block the line of sight,
-      // otherwise the view clips through hills and trees.
+      // Pull the camera in when the TERRAIN blocks the line of sight
+      // (props are excluded via collision groups - otherwise every tree
+      // next to the player yanked the camera inside the avatar body).
       const toCam = desired.clone().sub(lookTarget);
       const camDist = toCam.length();
       if (camDist > 0.01) {
         toCam.divideScalar(camDist);
-        const hit = this.physics.raycast(lookTarget, desired);
+        const hit = this.physics.raycast(lookTarget, desired, FILTER_TERRAIN_ONLY);
         const toi = hit ? (hit.timeOfImpact ?? hit.toi) : null;
         if (toi !== null && toi < camDist) {
-          desired.copy(lookTarget).addScaledVector(toCam, Math.max(0.6, toi - 0.25));
+          desired.copy(lookTarget).addScaledVector(toCam, Math.max(1.2, toi - 0.25));
         }
       }
 
