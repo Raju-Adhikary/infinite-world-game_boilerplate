@@ -6,8 +6,10 @@ import * as THREE from 'three';
 import Rapier from '@dimforge/rapier3d-compat';
 import { CFG } from '../config/config.js';
 import { SeededRandom, _key, _clamp } from '../core/utils.js';
+import { GROUP_TERRAIN, GROUP_PROP } from '../core/physics.js';
 import { Noise } from '../core/noise.js';
 import { createBotMesh } from '../entities/bot-mesh.js';
+import { createProceduralAnimator, createSwayAnimator } from '../entities/procedural-animator.js';
 
 export class ChunkManager {
   constructor(scene, physics, entities, glbCache, terrainH, biomeSys) {
@@ -149,7 +151,8 @@ export class ChunkManager {
 
     const idx = geo.getIndex();
     const wIdx = new Uint32Array(idx.array);
-    const colDesc = Rapier.ColliderDesc.trimesh(wVerts, wIdx);
+    const colDesc = Rapier.ColliderDesc.trimesh(wVerts, wIdx)
+      .setCollisionGroups(GROUP_TERRAIN);
     const bodyDesc = Rapier.RigidBodyDesc.fixed();
     const { body, id } = this.physics.createBody(bodyDesc, colDesc);
 
@@ -206,7 +209,9 @@ export class ChunkManager {
               return;
             }
             const inst = model.scene.clone();
-            const animation = this.glb.createAnimationController(model, inst, sCfg.animations || null);
+            // GLB clips when present, otherwise a gentle wind sway for flora
+            const animation = this.glb.createAnimationController(model, inst, sCfg.animations || null)
+              || (sCfg.sway ? createSwayAnimator(inst) : null);
             inst.scale.setScalar(scale);
             inst.position.set(px - o.x, py, pz - o.z);
             inst.rotation.y = rotY;
@@ -244,17 +249,26 @@ export class ChunkManager {
       const biome = this.biome.get(o.x + S / 2, o.z + S / 2);
       if (!bCfg.biomes.includes(biome)) continue;
       const density = this._getDensity(bCfg.density, biome);
-      if (rng.next() > density * S * S) continue;
+      // density is the chance that ONE bot of this type spawns in this chunk.
+      // The old formula multiplied it by chunkSize^2 (4096), which made every
+      // profile value >= 0.0005 always pass - one bot of every type in every
+      // single chunk.
+      if (rng.next() > density) continue;
 
       const px = o.x + rng.range(4, S - 4);
       const pz = o.z + rng.range(4, S - 4);
+      // Keep the world spawn area mob-free so the player never lands on a mob
+      if (px * px + pz * pz < CFG.world.safeSpawnRadius * CFG.world.safeSpawnRadius) continue;
       const py = this.terrainH.get(px, pz);
       const url = CFG.glbModels[bName];
 
       const spawnBot = (model = null) => {
         if (cd.disposed) return; // chunk unloaded while the model was loading
-        const mesh = model?.scene ? model.scene.clone() : createBotMesh(bCfg.bodyColor, bCfg.headColor);
-        const animation = model ? this.glb.createAnimationController(model, mesh, bCfg.animations || null) : null;
+        const mesh = model?.scene ? model.scene.clone() : createBotMesh(bCfg);
+        // GLB clip mixer when a real model exists, procedural limb animation
+        // (walk / idle / attack / flee) for the procedural fallback meshes
+        let animator = model ? this.glb.createAnimationController(model, mesh, bCfg.animations || null) : null;
+        if (!animator) animator = createProceduralAnimator(mesh);
         mesh.position.set(px - o.x, py, pz - o.z);
         mesh.rotation.y = rng.next() * Math.PI * 2;
         mesh.traverse(c => {
@@ -263,8 +277,11 @@ export class ChunkManager {
         });
         cd.group.add(mesh);
 
-        // Physics body for bot
-        const colDesc = Rapier.ColliderDesc.capsule(0.3, 0.4).setTranslation(0, 0.9, 0);
+        // Bot capsule is slimmer than before (r 0.4 -> 0.3) so the player
+        // stops close to a mob instead of pushing against an invisible blob.
+        const colDesc = Rapier.ColliderDesc.capsule(0.5, 0.3)
+          .setTranslation(0, 0.95, 0)
+          .setCollisionGroups(GROUP_PROP);
         const bodyDesc = Rapier.RigidBodyDesc.kinematicPositionBased();
         const { body, id: bid } = this.physics.createBody(bodyDesc, colDesc);
         body.setTranslation({ x: px, y: py, z: pz }, true);
@@ -291,10 +308,10 @@ export class ChunkManager {
           angryDuration: bCfg.angryDuration || 0,
           attackTimer: 0,
           angerTimer: 0,
-          animation,
+          animation: animator,
           config: bCfg
         });
-        if (animation) animation.playAction('idle');
+        if (animator) animator.playAction('idle');
         cd.bodyIds.push(eid);
       };
 
@@ -328,17 +345,20 @@ export class ChunkManager {
         halfExtents[0] * s,
         halfExtents[1] * s,
         halfExtents[2] * s
-      ).setTranslation(offset[0] * s, offset[1] * s, offset[2] * s);
+      ).setTranslation(offset[0] * s, offset[1] * s, offset[2] * s)
+        .setCollisionGroups(GROUP_PROP);
     }
 
     if (physics.type === 'ball') {
       return Rapier.ColliderDesc.ball((physics.radius || 1) * s)
-        .setTranslation(offset[0] * s, offset[1] * s, offset[2] * s);
+        .setTranslation(offset[0] * s, offset[1] * s, offset[2] * s)
+        .setCollisionGroups(GROUP_PROP);
     }
 
     if (physics.type === 'capsule') {
       return Rapier.ColliderDesc.capsule((physics.halfHeight || 1) * s, (physics.radius || 0.25) * s)
-        .setTranslation(offset[0] * s, offset[1] * s, offset[2] * s);
+        .setTranslation(offset[0] * s, offset[1] * s, offset[2] * s)
+        .setCollisionGroups(GROUP_PROP);
     }
 
     return null;

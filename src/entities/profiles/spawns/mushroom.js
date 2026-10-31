@@ -20,4 +20,5 @@ export const mushroom = {
     ],
   },
   physics: null,
+  sway: true,
 };

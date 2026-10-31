@@ -6,6 +6,14 @@ import * as THREE from 'three';
 import Rapier from '@dimforge/rapier3d-compat';
 import { _uid } from './utils.js';
 
+// Interaction groups (rapier format: membership << 16 | filter).
+// Bit 0 = terrain, bit 1 = props and characters. Both still collide with
+// everything as before; the groups exist so the camera ray can query the
+// terrain alone (FILTER_TERRAIN_ONLY) without props popping the camera in.
+export const GROUP_TERRAIN = 0x0001ffff;
+export const GROUP_PROP = 0x0002ffff;
+export const FILTER_TERRAIN_ONLY = 0x00010001;
+
 export class PhysicsWorld {
   constructor() {
     this.world = null;
@@ -51,7 +59,7 @@ export class PhysicsWorld {
     this.bodies.delete(id);
   }
 
-  raycast(from, to) {
+  raycast(from, to, filterGroups = undefined) {
     if (!this.world) return null;
 
     const dx = to.x - from.x;
@@ -65,7 +73,7 @@ export class PhysicsWorld {
     // lets a ground-check ray start inside the player's own capsule without
     // hitting it at toi=0 (terrain trimeshes are hollow, so a ray starting
     // BELOW the feet would miss the ground entirely).
-    return this.world.castRay(new Rapier.Ray(from, dir), dist, false);
+    return this.world.castRay(new Rapier.Ray(from, dir), dist, false, undefined, filterGroups);
   }
 
   getBodyPos(b) {

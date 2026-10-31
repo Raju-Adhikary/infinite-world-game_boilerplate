@@ -6,6 +6,8 @@ import * as THREE from 'three';
 import Rapier from '@dimforge/rapier3d-compat';
 import { CFG } from '../config/config.js';
 import { _clamp } from '../core/utils.js';
+import { GROUP_PROP, FILTER_TERRAIN_ONLY } from '../core/physics.js';
+import { createProceduralAnimator } from '../entities/procedural-animator.js';
 
 export class PlayerController {
   constructor(camera, physics, input, terrainH, scene) {
@@ -16,7 +18,7 @@ export class PlayerController {
     this.scene = scene;
 
     this.yaw = 0;
-    this.pitch = 0.5;
+    this.pitch = 0.12;
     this.grounded = false;
     this.bodyId = null;
     this.body = null;
@@ -26,6 +28,8 @@ export class PlayerController {
 
   _createAvatar() {
     const g = new THREE.Group();
+    const inner = new THREE.Group();
+    g.add(inner);
 
     const body = new THREE.Mesh(
       new THREE.CapsuleGeometry(0.38, 0.78, 4, 8),
@@ -33,7 +37,7 @@ export class PlayerController {
     );
     body.position.y = 0.92;
     body.castShadow = true;
-    g.add(body);
+    inner.add(body);
 
     const chest = new THREE.Mesh(
       new THREE.CylinderGeometry(0.32, 0.36, 0.8, 8),
@@ -41,7 +45,7 @@ export class PlayerController {
     );
     chest.position.y = 0.9;
     chest.castShadow = true;
-    g.add(chest);
+    inner.add(chest);
 
     const head = new THREE.Mesh(
       new THREE.SphereGeometry(0.28, 8, 6),
@@ -49,33 +53,45 @@ export class PlayerController {
     );
     head.position.y = 1.78;
     head.castShadow = true;
-    g.add(head);
+    inner.add(head);
 
+    // Face is on the local +Z side of the model
     const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
     for (const side of [-1, 1]) {
       const eye = new THREE.Mesh(new THREE.SphereGeometry(0.03, 4, 4), eyeMat);
-      eye.position.set(side * 0.07, 1.82, 0.22);
-      g.add(eye);
+      eye.position.set(side * 0.07, 1.82, 0.24);
+      inner.add(eye);
     }
 
+    // Arms hang from shoulder pivots so the walk cycle can swing them
+    const armL = new THREE.Group();
+    const armR = new THREE.Group();
     const armMat = new THREE.MeshLambertMaterial({ color: 0xd5b08a });
-    for (const side of [-1, 1]) {
+    for (const [pivot, side] of [[armL, -1], [armR, 1]]) {
+      pivot.position.set(side * 0.45, 1.32, 0);
       const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.42, 4, 6), armMat);
-      arm.position.set(side * 0.42, 1.08, 0);
-      arm.rotation.z = side * 0.18;
+      arm.position.y = -0.3;
       arm.castShadow = true;
-      g.add(arm);
+      pivot.add(arm);
+      pivot.rotation.z = side * 0.12; // slight A-pose rest
+      inner.add(pivot);
     }
 
+    // Legs hang from hip pivots; pivots sit at hip height, meshes reach y=0
+    const legL = new THREE.Group();
+    const legR = new THREE.Group();
     const legMat = new THREE.MeshLambertMaterial({ color: 0x2f2f3f });
-    for (const side of [-1, 1]) {
+    for (const [pivot, side] of [[legL, -1], [legR, 1]]) {
+      pivot.position.set(side * 0.16, 0.78, 0);
       const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.56, 4, 6), legMat);
-      leg.position.set(side * 0.16, 0.28, 0);
+      leg.position.y = -0.4;
       leg.castShadow = true;
-      g.add(leg);
+      pivot.add(leg);
+      inner.add(pivot);
     }
 
     g.visible = false;
+    g.userData.rig = { kind: 'humanoid', inner, head, armL, armR, legL, legR, isPlayer: true };
     return g;
   }
 
@@ -86,7 +102,8 @@ export class PlayerController {
     // 2.8m x 2m blob that wedged the player inside trees and blocks.
     const colDesc = Rapier.ColliderDesc.capsule((p.height - p.radius * 2) / 2, p.radius)
       .setTranslation(0, p.height / 2, 0)
-      .setMass(1);
+      .setMass(1)
+      .setCollisionGroups(GROUP_PROP);
     const bodyDesc = Rapier.RigidBodyDesc.dynamic()
       .setTranslation(this.spawnPos.x, this.spawnPos.y, this.spawnPos.z)
       .lockRotations();
@@ -97,6 +114,7 @@ export class PlayerController {
 
     this.avatar = this._createAvatar();
     this.scene.add(this.avatar);
+    this.avatarAnim = createProceduralAnimator(this.avatar);
   }
 
   _cameraMode() {
@@ -113,7 +131,11 @@ export class PlayerController {
     if (isFirstPerson) return;
 
     this.avatar.position.copy(bodyPos);
-    this.avatar.rotation.y = yaw;
+    // The avatar model's face is on its local +Z side. Rotating by yaw alone
+    // points +Z OPPOSITE to the camera forward direction (-sin yaw, -cos yaw),
+    // so the character walked backwards staring at the camera. yaw + PI makes
+    // the face point where the player is actually heading.
+    this.avatar.rotation.y = yaw + Math.PI;
   }
 
   update(dt) {
@@ -166,8 +188,12 @@ export class PlayerController {
     // Update camera
     const cp = CFG.player;
 
-    const playerPos = new THREE.Vector3(p.x, p.y + cp.height * 0.6, p.z);
+    // Frame the character around upper-chest/head height instead of the belly
+    const lookTarget = new THREE.Vector3(p.x, p.y + cp.height * 0.75, p.z);
     this._updateAvatar(new THREE.Vector3(p.x, p.y, p.z), this.yaw);
+
+    // Drive the walk / idle / jump poses from the real horizontal velocity
+    this.avatarAnim?.update(dt, Math.hypot(vel.x, vel.z), !this.grounded);
 
     const eyePos = new THREE.Vector3(p.x, p.y + cp.height * 0.9, p.z);
     const forward = new THREE.Vector3(
@@ -189,11 +215,31 @@ export class PlayerController {
         offset.addScaledVector(right, dist * 0.35);
       }
 
-      this.camera.position.copy(playerPos).add(offset);
-      this.camera.lookAt(playerPos);
+      const desired = lookTarget.clone().add(offset);
+
+      // Pull the camera in when the TERRAIN blocks the line of sight
+      // (props are excluded via collision groups - otherwise every tree
+      // next to the player yanked the camera inside the avatar body).
+      const toCam = desired.clone().sub(lookTarget);
+      const camDist = toCam.length();
+      if (camDist > 0.01) {
+        toCam.divideScalar(camDist);
+        const hit = this.physics.raycast(lookTarget, desired, FILTER_TERRAIN_ONLY);
+        const toi = hit ? (hit.timeOfImpact ?? hit.toi) : null;
+        if (toi !== null && toi < camDist) {
+          desired.copy(lookTarget).addScaledVector(toCam, Math.max(1.2, toi - 0.25));
+        }
+      }
+
+      // Never let the camera dip below the ground surface
+      const groundY = this.terrainH.get(desired.x, desired.z) + 0.3;
+      if (desired.y < groundY) desired.y = groundY;
+
+      this.camera.position.copy(desired);
+      this.camera.lookAt(lookTarget);
     }
 
-    return playerPos;
+    return lookTarget;
   }
 
   getPos() {

@@ -17,7 +17,7 @@ export const villager = {
       },
     ],
   },
-  speed: 1.5,
+  speed: 1.6,
   detect: 14,
   flee: 5,
   behavior: 'social',
@@ -26,7 +26,8 @@ export const villager = {
   attackForce: 0,
   angryDuration: 0,
   biomes: ['plains', 'forest'],
-  density: { plains: 0.0015, forest: 0.001 },
+  // density = chance that ONE villager spawns in a matching chunk
+  density: { plains: 0.2, forest: 0.1 },
   bodyColor: 0xc08040,
   headColor: 0xe0b080,
   animations: {

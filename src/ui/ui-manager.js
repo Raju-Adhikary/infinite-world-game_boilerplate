@@ -18,8 +18,12 @@ export class UIManager {
     this.crosshair = document.getElementById('crosshair');
     this.prevSettings = null;
 
-    this._bind();
+    // Settings must load BEFORE the controls bind: binding a range input
+    // fires its callback once with the DOM's uninitialized midpoint value,
+    // which used to override every saved slider setting (render distance
+    // booted as 4.5 instead of 3, FOV as 80, volumes and sensitivity off).
     this._loadSettings();
+    this._bind();
   }
 
   _bind() {
@@ -219,6 +223,7 @@ export class UIManager {
       `<span class="dbg-label">Draws</span> <span class="dbg-val">${data.drawCalls}</span><br>` +
       `<span class="dbg-label">Tris</span> <span class="dbg-val">${(data.triangles / 1000).toFixed(1)}k</span><br>` +
       `<span class="dbg-label">Biome</span> <span class="dbg-val">${data.biome}</span><br>` +
+      `<span class="dbg-label">Time</span> <span class="dbg-val">${data.time ?? '--:--'}</span><br>` +
       (data.entityTypes ? `<span class="dbg-label">Types</span> <span class="dbg-val">${Object.entries(data.entityTypes).map(([k, v]) => k + ':' + v).join(' ')}</span>` : '');
   }
 }

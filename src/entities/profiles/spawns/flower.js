@@ -20,4 +20,5 @@ export const flower = {
     ],
   },
   physics: null,
+  sway: true,
 };

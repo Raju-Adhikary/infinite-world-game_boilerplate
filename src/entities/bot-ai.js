@@ -3,6 +3,7 @@
  * Handles AI behavior for bots (villagers, guards, animals, monsters)
  */
 import * as THREE from 'three';
+import { _clamp } from '../core/utils.js';
 
 export function updateBots(entities, physics, terrainH, playerPos, playerBody, dt) {
   const bots = entities.all().filter(bot => bot && bot.category === 'bot');
@@ -13,6 +14,7 @@ export function updateBots(entities, physics, terrainH, playerPos, playerBody, d
     bot.stateTimer -= dt;
     bot.attackTimer = Math.max(0, (bot.attackTimer || 0) - dt);
     bot.angerTimer = Math.max(0, (bot.angerTimer || 0) - dt);
+    bot.currentSpeed = 0;
 
     const bPos = new THREE.Vector3();
     bot.mesh.getWorldPosition(bPos);
@@ -131,22 +133,41 @@ export function updateBots(entities, physics, terrainH, playerPos, playerBody, d
         break;
     }
 
-    // Face movement direction
-    if (bot.state === 'follow' || bot.state === 'flee' || bot.state === 'angry' || bot.state === 'attack') {
-      const angle = Math.atan2(dirX, dirZ);
-      bot.mesh.rotation.y = bot.state === 'flee' ? angle + Math.PI : angle;
+    // Face movement direction with a smooth turn instead of an instant snap
+    let targetHeading = null;
+    if (bot.state === 'follow' || bot.state === 'angry' || bot.state === 'attack') {
+      targetHeading = Math.atan2(dirX, dirZ);
+    } else if (bot.state === 'flee') {
+      targetHeading = Math.atan2(dirX, dirZ) + Math.PI;
     } else if (bot.state === 'wander' && bot.targetPos) {
       const tdx = bot.targetPos.x - bPos.x;
       const tdz = bot.targetPos.z - bPos.z;
-      bot.mesh.rotation.y = Math.atan2(tdx, tdz);
+      targetHeading = Math.atan2(tdx, tdz);
+    }
+
+    if (targetHeading !== null) {
+      if (bot.heading === undefined) bot.heading = targetHeading;
+      let diff = targetHeading - bot.heading;
+      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+      const maxTurn = 6 * dt; // rad per second
+      bot.heading += _clamp(diff, -maxTurn, maxTurn);
+      bot.heading = Math.atan2(Math.sin(bot.heading), Math.cos(bot.heading));
+      bot.mesh.rotation.y = bot.heading;
     }
 
     bot.action = nextAction;
 
-    if (bot.animation && bot.animation.state !== bot.action) {
-      const played = bot.animation.playAction(bot.action);
-      if (!played && bot.animation.state !== 'idle') {
-        bot.animation.playAction('idle');
+    if (bot.animation) {
+      if (bot.animation.state !== bot.action) {
+        const played = bot.animation.playAction(bot.action);
+        if (!played && bot.animation.state !== 'idle') {
+          bot.animation.playAction('idle');
+        }
+      }
+      // Procedural animators scale the gait by the speed they are given;
+      // GLB mixers just ignore the extra argument.
+      if (typeof bot.animation.update === 'function') {
+        bot.animation.update(dt, bot.currentSpeed || 0);
       }
     }
   }
@@ -192,4 +213,5 @@ function _moveBot(bot, target, speed, dt, terrainH, physics) {
   if (body) body.body.setNextKinematicTranslation({ x: newX, y: newY, z: newZ });
 
   bot.position.set(newX, newY, newZ);
+  bot.currentSpeed = speed; // remembered for the procedural walk animation
 }
