@@ -39,6 +39,7 @@ build/Release
 
 # Dependency directories
 node_modules/
+node_modules
 jspm_packages/
 
 # Snowpack dependency directory (https://snowpack.dev/)
@@ -161,3 +162,6 @@ notes/
 credentials*.json
 secrets*
 .auth/
+
+# Local test harness (never commit)
+test-harness.html

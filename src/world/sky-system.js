@@ -22,13 +22,13 @@ const PAL = {
   duskLight: new THREE.Color('#ff9a4a'),
   moonLight: new THREE.Color('#8fa3d8'),
   dayHemiSky: new THREE.Color('#90a8c0'),
-  nightHemiSky: new THREE.Color('#18233e'),
+  nightHemiSky: new THREE.Color('#22304e'),
   dayHemiGround: new THREE.Color('#404020'),
-  nightHemiGround: new THREE.Color('#0c0c12'),
+  nightHemiGround: new THREE.Color('#14161c'),
   dayAmbient: new THREE.Color('#8090a0'),
-  nightAmbient: new THREE.Color('#26304a'),
+  nightAmbient: new THREE.Color('#3a4763'),
   dayCloud: new THREE.Color('#ffffff'),
-  nightCloud: new THREE.Color('#3a4358'),
+  nightCloud: new THREE.Color('#4a5470'),
 };
 
 const smooth = (a, b, x) => {
@@ -207,12 +207,13 @@ export class SkySystem {
     this.moonDir.copy(this.sunDir).negate();
 
     const sunEl = this.sunDir.y;
-    const day = smooth(-0.06, 0.28, sunEl);
+    // Wide ramp so dusk and dawn stay readable for longer
+    const day = smooth(-0.12, 0.2, sunEl);
     const dusk = Math.max(0, 1 - Math.abs(sunEl - 0.04) / 0.22);
 
     // --- sky and fog color ---
     const sky = this._skyColor.copy(PAL.nightSky).lerp(PAL.daySky, day);
-    if (dusk > 0) sky.lerp(PAL.duskSky, dusk * 0.45);
+    if (dusk > 0) sky.lerp(PAL.duskSky, dusk * 0.55);
     if (this.scene.background && this.scene.background.isColor) this.scene.background.copy(sky);
     if (this.scene.fog) this.scene.fog.color.copy(sky);
 
@@ -222,7 +223,7 @@ export class SkySystem {
       const sunUp = smooth(-0.1, 0.05, sunEl);
       const moonUp = smooth(-0.1, 0.05, -sunEl);
       const sunI = (0.2 + 1.2 * smooth(0.0, 0.35, sunEl)) * sunUp;
-      const moonI = (0.12 + 0.18 * smooth(0.0, 0.35, -sunEl)) * moonUp;
+      const moonI = (0.2 + 0.3 * smooth(0.0, 0.35, -sunEl)) * moonUp;
 
       if (sunI >= moonI) {
         L.position.copy(playerPos).addScaledVector(this.sunDir, LIGHT_DIST);
@@ -243,11 +244,11 @@ export class SkySystem {
     if (this.hemiLight) {
       this.hemiLight.color.copy(PAL.nightHemiSky).lerp(PAL.dayHemiSky, day);
       this.hemiLight.groundColor.copy(PAL.nightHemiGround).lerp(PAL.dayHemiGround, day);
-      this.hemiLight.intensity = 0.14 + (0.4 - 0.14) * day;
+      this.hemiLight.intensity = 0.22 + (0.4 - 0.22) * day;
     }
     if (this.ambientLight) {
       this.ambientLight.color.copy(PAL.nightAmbient).lerp(PAL.dayAmbient, day);
-      this.ambientLight.intensity = 0.16 + (0.5 - 0.16) * day;
+      this.ambientLight.intensity = 0.3 + (0.5 - 0.3) * day;
     }
 
     // --- sun / moon billboards ---
