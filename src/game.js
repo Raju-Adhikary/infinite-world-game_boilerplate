@@ -232,8 +232,10 @@ export class Game {
     // Bot AI
     updateBots(this.entities, this.physics, this.terrainH, pPos, this.player.body, dt);
 
-    // Entity animations
+    // Entity animations. Bots are excluded here - updateBots drives their
+    // animators with the speed they actually moved this frame.
     for (const entity of this.entities.all()) {
+      if (entity.category === 'bot') continue;
       if (entity.animation && typeof entity.animation.update === 'function') {
         entity.animation.update(dt);
       }

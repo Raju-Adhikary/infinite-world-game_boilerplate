@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import Rapier from '@dimforge/rapier3d-compat';
 import { CFG } from '../config/config.js';
 import { _clamp } from '../core/utils.js';
+import { createProceduralAnimator } from '../entities/procedural-animator.js';
 
 export class PlayerController {
   constructor(camera, physics, input, terrainH, scene) {
@@ -26,6 +27,8 @@ export class PlayerController {
 
   _createAvatar() {
     const g = new THREE.Group();
+    const inner = new THREE.Group();
+    g.add(inner);
 
     const body = new THREE.Mesh(
       new THREE.CapsuleGeometry(0.38, 0.78, 4, 8),
@@ -33,7 +36,7 @@ export class PlayerController {
     );
     body.position.y = 0.92;
     body.castShadow = true;
-    g.add(body);
+    inner.add(body);
 
     const chest = new THREE.Mesh(
       new THREE.CylinderGeometry(0.32, 0.36, 0.8, 8),
@@ -41,7 +44,7 @@ export class PlayerController {
     );
     chest.position.y = 0.9;
     chest.castShadow = true;
-    g.add(chest);
+    inner.add(chest);
 
     const head = new THREE.Mesh(
       new THREE.SphereGeometry(0.28, 8, 6),
@@ -49,33 +52,45 @@ export class PlayerController {
     );
     head.position.y = 1.78;
     head.castShadow = true;
-    g.add(head);
+    inner.add(head);
 
+    // Face is on the local +Z side of the model
     const eyeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
     for (const side of [-1, 1]) {
       const eye = new THREE.Mesh(new THREE.SphereGeometry(0.03, 4, 4), eyeMat);
-      eye.position.set(side * 0.07, 1.82, 0.22);
-      g.add(eye);
+      eye.position.set(side * 0.07, 1.82, 0.24);
+      inner.add(eye);
     }
 
+    // Arms hang from shoulder pivots so the walk cycle can swing them
+    const armL = new THREE.Group();
+    const armR = new THREE.Group();
     const armMat = new THREE.MeshLambertMaterial({ color: 0xd5b08a });
-    for (const side of [-1, 1]) {
+    for (const [pivot, side] of [[armL, -1], [armR, 1]]) {
+      pivot.position.set(side * 0.45, 1.32, 0);
       const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.42, 4, 6), armMat);
-      arm.position.set(side * 0.42, 1.08, 0);
-      arm.rotation.z = side * 0.18;
+      arm.position.y = -0.3;
       arm.castShadow = true;
-      g.add(arm);
+      pivot.add(arm);
+      pivot.rotation.z = side * 0.12; // slight A-pose rest
+      inner.add(pivot);
     }
 
+    // Legs hang from hip pivots; pivots sit at hip height, meshes reach y=0
+    const legL = new THREE.Group();
+    const legR = new THREE.Group();
     const legMat = new THREE.MeshLambertMaterial({ color: 0x2f2f3f });
-    for (const side of [-1, 1]) {
+    for (const [pivot, side] of [[legL, -1], [legR, 1]]) {
+      pivot.position.set(side * 0.16, 0.78, 0);
       const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.56, 4, 6), legMat);
-      leg.position.set(side * 0.16, 0.28, 0);
+      leg.position.y = -0.4;
       leg.castShadow = true;
-      g.add(leg);
+      pivot.add(leg);
+      inner.add(pivot);
     }
 
     g.visible = false;
+    g.userData.rig = { kind: 'humanoid', inner, head, armL, armR, legL, legR, isPlayer: true };
     return g;
   }
 
@@ -97,6 +112,7 @@ export class PlayerController {
 
     this.avatar = this._createAvatar();
     this.scene.add(this.avatar);
+    this.avatarAnim = createProceduralAnimator(this.avatar);
   }
 
   _cameraMode() {
@@ -173,6 +189,9 @@ export class PlayerController {
     // Frame the character around upper-chest/head height instead of the belly
     const lookTarget = new THREE.Vector3(p.x, p.y + cp.height * 0.75, p.z);
     this._updateAvatar(new THREE.Vector3(p.x, p.y, p.z), this.yaw);
+
+    // Drive the walk / idle / jump poses from the real horizontal velocity
+    this.avatarAnim?.update(dt, Math.hypot(vel.x, vel.z), !this.grounded);
 
     const eyePos = new THREE.Vector3(p.x, p.y + cp.height * 0.9, p.z);
     const forward = new THREE.Vector3(

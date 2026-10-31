@@ -8,6 +8,7 @@ import { CFG } from '../config/config.js';
 import { SeededRandom, _key, _clamp } from '../core/utils.js';
 import { Noise } from '../core/noise.js';
 import { createBotMesh } from '../entities/bot-mesh.js';
+import { createProceduralAnimator, createSwayAnimator } from '../entities/procedural-animator.js';
 
 export class ChunkManager {
   constructor(scene, physics, entities, glbCache, terrainH, biomeSys) {
@@ -206,7 +207,9 @@ export class ChunkManager {
               return;
             }
             const inst = model.scene.clone();
-            const animation = this.glb.createAnimationController(model, inst, sCfg.animations || null);
+            // GLB clips when present, otherwise a gentle wind sway for flora
+            const animation = this.glb.createAnimationController(model, inst, sCfg.animations || null)
+              || (sCfg.sway ? createSwayAnimator(inst) : null);
             inst.scale.setScalar(scale);
             inst.position.set(px - o.x, py, pz - o.z);
             inst.rotation.y = rotY;
@@ -259,8 +262,11 @@ export class ChunkManager {
 
       const spawnBot = (model = null) => {
         if (cd.disposed) return; // chunk unloaded while the model was loading
-        const mesh = model?.scene ? model.scene.clone() : createBotMesh(bCfg.bodyColor, bCfg.headColor);
-        const animation = model ? this.glb.createAnimationController(model, mesh, bCfg.animations || null) : null;
+        const mesh = model?.scene ? model.scene.clone() : createBotMesh(bCfg);
+        // GLB clip mixer when a real model exists, procedural limb animation
+        // (walk / idle / attack / flee) for the procedural fallback meshes
+        let animator = model ? this.glb.createAnimationController(model, mesh, bCfg.animations || null) : null;
+        if (!animator) animator = createProceduralAnimator(mesh);
         mesh.position.set(px - o.x, py, pz - o.z);
         mesh.rotation.y = rng.next() * Math.PI * 2;
         mesh.traverse(c => {
@@ -298,10 +304,10 @@ export class ChunkManager {
           angryDuration: bCfg.angryDuration || 0,
           attackTimer: 0,
           angerTimer: 0,
-          animation,
+          animation: animator,
           config: bCfg
         });
-        if (animation) animation.playAction('idle');
+        if (animator) animator.playAction('idle');
         cd.bodyIds.push(eid);
       };
 
