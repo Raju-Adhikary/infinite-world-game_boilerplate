@@ -280,7 +280,8 @@ export class SkySystem {
   }
 
   dispose() {
-    // Remove everything from the scene and free GPU resources
+    // Clean up geometries/materials AND remove everything from the scene,
+    // otherwise disposed meshes keep rendering with re-uploaded resources.
     for (const mesh of [this.sunMesh, this.moonMesh]) {
       if (!mesh) continue;
       this.scene.remove(mesh);

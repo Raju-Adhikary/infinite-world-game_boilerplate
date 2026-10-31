@@ -162,6 +162,5 @@ notes/
 credentials*.json
 secrets*
 .auth/
-
 # Local test harness (never commit)
 test-harness.html
