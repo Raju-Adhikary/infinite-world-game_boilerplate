@@ -26,15 +26,22 @@ export const CFG = {
     sunIntensity: 1.4,
     sunDir: [0.6, 0.8, 0.4],
     shadowMapSize: 2048,
+    // Day-night cycle
+    dayLength: 240,   // real seconds for one full day+night cycle
+    dayStart: 0.3,    // time of day the game starts at (0.25 = sunrise, 0.5 = noon)
+    // Bots never spawn inside this radius around the world origin (player spawn)
+    safeSpawnRadius: 14,
   },
   player: {
     height: 1.8,
     radius: 0.4,
-    moveSpeed: 8,
+    moveSpeed: 5.5,
     jumpForce: 7,
-    cameraDist: 8,
-    cameraHeight: 3,
-    cameraMinPitch: -0.3,
+    cameraDist: 7,
+    cameraHeight: 2.2,
+    // Symmetric pitch limits: the old clamp (-0.3..1.2) barely allowed looking
+    // down while letting the camera dive under the terrain when looking up.
+    cameraMinPitch: -1.2,
     cameraMaxPitch: 1.2,
     spawnY: 30,
   },

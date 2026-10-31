@@ -16,7 +16,7 @@ export const rock = {
   },
   physics: {
     type: 'ball',
-    radius: 1.15,
-    offset: [0, 1.15, 0],
+    radius: 0.95,
+    offset: [0, 0.95, 0],
   },
 };

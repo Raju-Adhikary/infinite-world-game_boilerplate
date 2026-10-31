@@ -22,7 +22,7 @@ export const house = {
   },
   physics: {
     type: 'cuboid',
-    halfExtents: [2.6, 2.2, 2.6],
+    halfExtents: [2.55, 2.2, 2.05],
     offset: [0, 2.2, 0],
   },
 };

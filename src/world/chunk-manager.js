@@ -244,10 +244,16 @@ export class ChunkManager {
       const biome = this.biome.get(o.x + S / 2, o.z + S / 2);
       if (!bCfg.biomes.includes(biome)) continue;
       const density = this._getDensity(bCfg.density, biome);
-      if (rng.next() > density * S * S) continue;
+      // density is the chance that ONE bot of this type spawns in this chunk.
+      // The old formula multiplied it by chunkSize^2 (4096), which made every
+      // profile value >= 0.0005 always pass - one bot of every type in every
+      // single chunk.
+      if (rng.next() > density) continue;
 
       const px = o.x + rng.range(4, S - 4);
       const pz = o.z + rng.range(4, S - 4);
+      // Keep the world spawn area mob-free so the player never lands on a mob
+      if (px * px + pz * pz < CFG.world.safeSpawnRadius * CFG.world.safeSpawnRadius) continue;
       const py = this.terrainH.get(px, pz);
       const url = CFG.glbModels[bName];
 
@@ -263,8 +269,9 @@ export class ChunkManager {
         });
         cd.group.add(mesh);
 
-        // Physics body for bot
-        const colDesc = Rapier.ColliderDesc.capsule(0.3, 0.4).setTranslation(0, 0.9, 0);
+        // Bot capsule is slimmer than before (r 0.4 -> 0.3) so the player
+        // stops close to a mob instead of pushing against an invisible blob.
+        const colDesc = Rapier.ColliderDesc.capsule(0.5, 0.3).setTranslation(0, 0.95, 0);
         const bodyDesc = Rapier.RigidBodyDesc.kinematicPositionBased();
         const { body, id: bid } = this.physics.createBody(bodyDesc, colDesc);
         body.setTranslation({ x: px, y: py, z: pz }, true);

@@ -124,7 +124,10 @@ export class Game {
     };
     ui.ontoggleDebug = () => ui.toggleDebug();
 
-    // Show start screen
+    // Show start screen. The state must be 'menu' BEFORE _renderIdle() runs -
+    // it early-returns for any other state, which left the start screen with
+    // an empty, never-rendered background.
+    this.state = 'menu';
     ui.hideLoading();
     ui.showStart();
 

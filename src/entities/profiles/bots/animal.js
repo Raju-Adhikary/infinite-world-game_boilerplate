@@ -17,7 +17,7 @@ export const animal = {
       },
     ],
   },
-  speed: 3.5,
+  speed: 4,
   detect: 10,
   flee: 7,
   behavior: 'flee',
@@ -26,7 +26,7 @@ export const animal = {
   attackForce: 0,
   angryDuration: 0,
   biomes: ['forest', 'plains', 'snow', 'tundra'],
-  density: { forest: 0.0022, plains: 0.0018, snow: 0.0014, tundra: 0.0012 },
+  density: { forest: 0.3, plains: 0.22, snow: 0.12, tundra: 0.1 },
   bodyColor: 0x806040,
   headColor: 0x907050,
   animations: {

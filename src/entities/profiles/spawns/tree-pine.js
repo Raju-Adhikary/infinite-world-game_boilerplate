@@ -22,7 +22,7 @@ export const tree_pine = {
   physics: {
     type: 'capsule',
     halfHeight: 1.9,
-    radius: 0.38,
+    radius: 0.28,
     offset: [0, 2.28, 0],
   },
 };

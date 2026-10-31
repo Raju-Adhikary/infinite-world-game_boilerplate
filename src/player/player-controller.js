@@ -16,7 +16,7 @@ export class PlayerController {
     this.scene = scene;
 
     this.yaw = 0;
-    this.pitch = 0.5;
+    this.pitch = 0.12;
     this.grounded = false;
     this.bodyId = null;
     this.body = null;
@@ -113,7 +113,11 @@ export class PlayerController {
     if (isFirstPerson) return;
 
     this.avatar.position.copy(bodyPos);
-    this.avatar.rotation.y = yaw;
+    // The avatar model's face is on its local +Z side. Rotating by yaw alone
+    // points +Z OPPOSITE to the camera forward direction (-sin yaw, -cos yaw),
+    // so the character walked backwards staring at the camera. yaw + PI makes
+    // the face point where the player is actually heading.
+    this.avatar.rotation.y = yaw + Math.PI;
   }
 
   update(dt) {
@@ -166,7 +170,8 @@ export class PlayerController {
     // Update camera
     const cp = CFG.player;
 
-    const playerPos = new THREE.Vector3(p.x, p.y + cp.height * 0.6, p.z);
+    // Frame the character around upper-chest/head height instead of the belly
+    const lookTarget = new THREE.Vector3(p.x, p.y + cp.height * 0.75, p.z);
     this._updateAvatar(new THREE.Vector3(p.x, p.y, p.z), this.yaw);
 
     const eyePos = new THREE.Vector3(p.x, p.y + cp.height * 0.9, p.z);
@@ -189,11 +194,30 @@ export class PlayerController {
         offset.addScaledVector(right, dist * 0.35);
       }
 
-      this.camera.position.copy(playerPos).add(offset);
-      this.camera.lookAt(playerPos);
+      const desired = lookTarget.clone().add(offset);
+
+      // Pull the camera in when terrain or props block the line of sight,
+      // otherwise the view clips through hills and trees.
+      const toCam = desired.clone().sub(lookTarget);
+      const camDist = toCam.length();
+      if (camDist > 0.01) {
+        toCam.divideScalar(camDist);
+        const hit = this.physics.raycast(lookTarget, desired);
+        const toi = hit ? (hit.timeOfImpact ?? hit.toi) : null;
+        if (toi !== null && toi < camDist) {
+          desired.copy(lookTarget).addScaledVector(toCam, Math.max(0.6, toi - 0.25));
+        }
+      }
+
+      // Never let the camera dip below the ground surface
+      const groundY = this.terrainH.get(desired.x, desired.z) + 0.3;
+      if (desired.y < groundY) desired.y = groundY;
+
+      this.camera.position.copy(desired);
+      this.camera.lookAt(lookTarget);
     }
 
-    return playerPos;
+    return lookTarget;
   }
 
   getPos() {
