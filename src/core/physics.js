@@ -18,7 +18,18 @@ export class PhysicsWorld {
   }
 
   step(dt) {
-    if (this.world) this.world.step();
+    if (!this.world) return;
+    // Rapier's default timestep is fixed at 1/60 regardless of framerate, which
+    // makes the whole simulation run faster than real time above 60 FPS and
+    // slower below it. Sub-step so each integration stays <= 1/60 while the
+    // total advanced time matches the real frame delta.
+    const clamped = Math.min(Math.max(dt, 0.0001), 0.05);
+    const substeps = Math.max(1, Math.ceil(clamped / (1 / 60)));
+    const h = clamped / substeps;
+    this.world.timestep = h;
+    for (let i = 0; i < substeps; i++) {
+      this.world.step();
+    }
   }
 
   createBody(desc, colDesc = null) {
@@ -50,7 +61,11 @@ export class PhysicsWorld {
     if (dist <= 0) return null;
 
     const dir = { x: dx / dist, y: dy / dist, z: dz / dist };
-    return this.world.castRay(new Rapier.Ray(from, dir), dist, true);
+    // solid=false: colliders that contain the ray origin are ignored. This
+    // lets a ground-check ray start inside the player's own capsule without
+    // hitting it at toi=0 (terrain trimeshes are hollow, so a ray starting
+    // BELOW the feet would miss the ground entirely).
+    return this.world.castRay(new Rapier.Ray(from, dir), dist, false);
   }
 
   getBodyPos(b) {

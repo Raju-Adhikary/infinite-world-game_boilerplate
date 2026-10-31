@@ -81,7 +81,10 @@ export class PlayerController {
 
   init() {
     const p = CFG.player;
-    const colDesc = Rapier.ColliderDesc.capsule(p.radius, p.height - p.radius * 2)
+    // Rapier capsule is capsule(halfHeight, radius); total height = 2*halfHeight + 2*radius.
+    // The old call passed the arguments swapped, inflating the collider to a
+    // 2.8m x 2m blob that wedged the player inside trees and blocks.
+    const colDesc = Rapier.ColliderDesc.capsule((p.height - p.radius * 2) / 2, p.radius)
       .setTranslation(0, p.height / 2, 0)
       .setMass(1);
     const bodyDesc = Rapier.RigidBodyDesc.dynamic()
@@ -138,18 +141,27 @@ export class PlayerController {
     const spd = CFG.player.moveSpeed;
     this.body.setLinvel({ x: dir.x * spd, y: vel.y, z: dir.z * spd }, true);
 
-    // Jump
+    // Ground check via raycast. The ray starts slightly above the feet and
+    // physics.raycast uses solid=false, so the player's own capsule (which
+    // contains the ray origin) is ignored - a solid raycast from inside the
+    // body reported "grounded" every frame at toi=0. The downward-velocity
+    // guard keeps the ascending phase of a jump from re-triggering it.
+    const p = this.body.translation();
+    const rayFrom = { x: p.x, y: p.y + 0.1, z: p.z };
+    const rayTo = { x: p.x, y: p.y - 0.5, z: p.z };
+    const hit = this.physics.raycast(rayFrom, rayTo);
+    // Rapier 0.12 exposes the hit distance as `toi` (newer builds renamed it
+    // to `timeOfImpact`) - reading only the new name made grounded forever
+    // false, so jumping never worked.
+    const hitDist = hit ? (hit.timeOfImpact ?? hit.toi) : null;
+    this.grounded = hit !== null && hitDist < 0.45 && vel.y <= 0.1;
+
+    // Jump (keep current horizontal velocity; the stale pre-movement value
+    // captured above would cancel the speed the player just accelerated to)
     if (this.input.actions.jump && this.grounded) {
-      this.body.setLinvel({ x: vel.x, y: CFG.player.jumpForce, z: vel.z }, true);
+      this.body.setLinvel({ x: dir.x * spd, y: CFG.player.jumpForce, z: dir.z * spd }, true);
       this.grounded = false;
     }
-
-    // Ground check via raycast
-    const p = this.body.translation();
-    const rayFrom = { x: p.x, y: p.y, z: p.z };
-    const rayTo = { x: p.x, y: p.y - CFG.player.height - 0.3, z: p.z };
-    const hit = this.physics.raycast(rayFrom, rayTo);
-    this.grounded = hit !== null && hit.timeOfImpact < CFG.player.height + 0.3;
 
     // Update camera
     const cp = CFG.player;

@@ -120,7 +120,11 @@ export class UIManager {
   }
 
   _emit(ev) {
-    this['on' + ev]?.();
+    // Handlers are assigned camelCase (ontogglePause) but event names are
+    // kebab-case ('toggle-pause') - the plain lookup found nothing, so the
+    // Escape pause and F3 debug shortcuts silently did nothing.
+    const prop = 'on' + ev.replace(/-(\w)/g, (_, c) => c.toUpperCase());
+    this[prop]?.();
   }
 
   _loadSettings() {
@@ -187,7 +191,12 @@ export class UIManager {
   hidePause() {
     this.pauseEl.classList.add('hidden');
     this.crosshair.classList.remove('hidden');
-    if (!this.input.isTouchDevice) document.getElementById('game-container')?.requestPointerLock();
+    if (!this.input.isTouchDevice) {
+      try {
+        const p = document.getElementById('game-container')?.requestPointerLock();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      } catch (e) { /* pointer lock unavailable - not fatal */ }
+    }
   }
   showMobileControls() { this.mobileCtrl.classList.remove('hidden'); }
   toggleDebug() { this.debugEl.classList.toggle('hidden'); }

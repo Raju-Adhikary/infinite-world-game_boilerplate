@@ -126,15 +126,20 @@ export class SkySystem {
   }
 
   dispose() {
-    // Clean up geometries and materials
+    // Clean up geometries/materials AND remove everything from the scene,
+    // otherwise disposed meshes keep rendering with re-uploaded resources.
     if (this.sunMesh) {
+      this.scene.remove(this.sunMesh);
       this.sunMesh.geometry.dispose();
       this.sunMesh.material.dispose();
       if (this.sunMesh.children[0]) {
         this.sunMesh.children[0].geometry.dispose();
         this.sunMesh.children[0].material.dispose();
       }
+      this.sunMesh = null;
     }
+
+    this.scene.remove(this.cloudGroup);
 
     for (const cloud of this.clouds) {
       cloud.mesh.traverse((child) => {
@@ -142,5 +147,7 @@ export class SkySystem {
         if (child.material) child.material.dispose();
       });
     }
+
+    this.clouds = [];
   }
 }

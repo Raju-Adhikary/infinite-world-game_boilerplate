@@ -6,7 +6,10 @@ import { _lerp } from './utils.js';
 export class Noise {
   constructor(seed = 0) {
     this.p = new Uint8Array(512);
-    let s = seed;
+    // A zero/negative Lehmer state would degenerate the Fisher-Yates shuffle
+    // into a fixed permutation, producing visibly repeating noise.
+    let s = Math.floor(Math.abs(seed)) % 2147483647;
+    if (s === 0) s = 1;
 
     for (let i = 0; i < 256; i++) {
       this.p[i] = i;

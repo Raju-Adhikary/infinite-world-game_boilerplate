@@ -141,3 +141,23 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# ---- Local workspace guard: never commit helper/working files ----
+# AI agent workspace artifacts
+worklog*
+*worklog*
+agent-ctx/
+.tasks/
+
+# Local helper scripts and notes
+scripts/
+notes/
+*.local.md
+
+# Secrets and credentials
+*.pem
+*.key
+*.p12
+credentials*.json
+secrets*
+.auth/

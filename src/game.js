@@ -51,7 +51,10 @@ export class Game {
     // Pointer lock on click
     container.addEventListener('click', () => {
       if (this.state === 'playing' && !input.isTouchDevice) {
-        container.requestPointerLock();
+        try {
+          const p = container.requestPointerLock();
+          if (p && typeof p.catch === 'function') p.catch(() => {});
+        } catch (e) { /* pointer lock unavailable - not fatal */ }
       }
     });
 
@@ -149,7 +152,10 @@ export class Game {
   }
 
   _startGame() {
-    document.documentElement.requestFullscreen();
+    try {
+      const p = document.documentElement.requestFullscreen?.();
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    } catch (e) { /* fullscreen unavailable (e.g. iframe) - not fatal */ }
     this.state = 'playing';
     this.ui.hideStart();
     this.ui.crosshair.classList.remove('hidden');
@@ -185,7 +191,8 @@ export class Game {
     this.player.destroy();
     this.chunks.unloadAll();
     this.entities.clear();
-    this.sky.dispose();
+    // Sky stays alive across play sessions - disposing it here left the sun
+    // and clouds with freed GPU resources on the next PLAY.
     this.ui.hidePause();
     this.ui.showStart();
     this._renderIdle();
