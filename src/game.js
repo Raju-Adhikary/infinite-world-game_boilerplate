@@ -99,7 +99,8 @@ export class Game {
     this.entities = new EntityManager();
     this.terrainH = new TerrainHeight(CFG.world.seed);
     this.biome = new BiomeSystem(CFG.world.seed);
-    this.sky = new SkySystem(this.scene);
+    // The sky system owns the day-night cycle and drives all three lights
+    this.sky = new SkySystem(this.scene, { sun, hemi, ambient: amb });
     this.physics = new PhysicsWorld();
     await this.physics.init();
     this.chunks = new ChunkManager(this.scene, this.physics, this.entities, this.glb, this.terrainH, this.biome);
@@ -147,9 +148,12 @@ export class Game {
   _renderIdle() {
     if (this.state !== 'menu') return;
 
+    const dt = Math.min(this.clock.getDelta(), 0.05);
     const t = performance.now() * 0.0002;
     this.camera.position.set(Math.sin(t) * 40, 25, Math.cos(t) * 40);
     this.camera.lookAt(0, 5, 0);
+    // Keep the day cycle ticking slowly behind the menu
+    this.sky.update(this.camera.position, dt * 0.5);
     this.renderer.render(this.scene, this.camera);
     requestAnimationFrame(() => this._renderIdle());
   }
@@ -214,17 +218,9 @@ export class Game {
     const pPos = this.player.update(dt);
     if (!pPos) return;
 
-    // Update shadow to follow player
-    this.sun.position.set(
-      pPos.x + CFG.world.sunDir[0] * 50,
-      pPos.y + CFG.world.sunDir[1] * 50,
-      pPos.z + CFG.world.sunDir[2] * 50
-    );
-    this.sun.target.position.copy(pPos);
-    this.sun.target.updateMatrixWorld();
-
-    // Update sky (sun mesh and clouds)
-    this.sky.update(pPos);
+    // Sky drives the day-night cycle: celestial meshes, stars, cloud tint
+    // and every scene light (sun/moon directional, hemisphere, ambient)
+    this.sky.update(pPos, dt);
 
     // Chunks
     this.chunks.update(pPos.x, pPos.z, CFG.settings.renderDist);
@@ -269,6 +265,7 @@ export class Game {
       drawCalls: ri.render.calls,
       triangles: ri.render.triangles,
       biome: currentBiome,
+      time: this.sky.clockString,
       entityTypes: this.entities.countByType()
     });
 
